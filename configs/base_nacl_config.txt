@@ -1,0 +1,31 @@
+# CONCENTRATION
+box_length = 100
+num_particles = 2000
+
+# SIMULATION SETTINGS
+equil_steps = 0
+prod_steps = 1000000
+output_interval = 1000
+internal_interval = 1000
+steer_interval = 5000
+seed = 11
+max_target = 40
+
+# MOVE RATES
+avbmc_rate = 0.2
+nvt_rate = 0.2
+translation_rate = 0.6
+max_trans = 4.2
+
+# CLUSTER DEFINITION
+upper_cutoff = 3.5
+lower_cutoff = 2.5
+clust_cutoff = 3.5
+counter_cutoff = 4
+
+# INPUT FILES
+# potential, input, and bias files should be in "potentials/", "inputs/" and "bias/" directories, respectively
+# use none to start from random configuration
+ff_file = nacl_rdf.txt
+input_file = none
+bias_file = none
