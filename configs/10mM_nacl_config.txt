@@ -1,0 +1,44 @@
+# CONCENTRATION
+# TODO: add concentration option instead
+box_length = 367
+num_particles = 600
+
+# SIMULATION SETTINGS
+# equilibrations do not output to files
+# internal_interval defines the interval at which we update maximum displacements
+equil_steps = 0
+prod_steps = 10000000
+output_interval = 1000
+internal_interval = 1000
+seed = 15
+
+# BIAS SETTINGS
+## set these to zero for no bias or restraints
+## center and k are the center and force constant for a harmonic restraint
+## can apply a linear bias by inputting a bias_file instead
+bias_file = none
+max_target = 100
+center = 0
+k = 0
+
+# MOVE RATES
+# max_trans is the initial maximum translation rate, but will be tuned (within 0.01 Å to 10 Å according to acceptance rates)
+avbmc_rate = 0.2
+nvt_rate = 0.1
+translation_rate = 0.7
+swap_rate = 0.0
+max_trans = 4.2
+
+# CLUSTER DEFINITION
+# upper and lower cutoffs are the bounds for AVBMC insertions, clust_cutoff is cutoff for the Stilinger cluster definition
+# counter_cutoff is the minimum cutoff for screened interactions, it gets scaled up for larger clusters
+upper_cutoff = 3.5
+lower_cutoff = 2.5
+clust_cutoff = 3.5
+counter_cutoff = 3.8
+
+# INPUT FILES
+# potential, input, and bias files should be in "potentials/", "inputs/" and "bias/" directories, respectively
+# using no input structure will start simulation from random configuration
+ff_file = nacl_2M_rdf.txt
+input_file = none

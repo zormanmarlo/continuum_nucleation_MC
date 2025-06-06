@@ -33,16 +33,20 @@ class Particle:
 class PMF:
     def __init__(self, path):
         self.pmf_function = np.loadtxt(path)
-        distances = self.pmf_function[:,0]
-        # X = 0.5
-        # N = int(X / (distances[1] - distances[0]))
-        sigma = 3
-        self.pmf_function[:,4] = (sigma/self.pmf_function[:,0])**12
-        self.pmf_function[:,5] = (sigma/self.pmf_function[:,0])**12
-        
-    
         self.cut_off = 20.0
 
+        self.pmf_function[:,4] = np.where(self.pmf_function[:,4] > 50, 900, self.pmf_function[:,4])
+        self.pmf_function[:,4] = np.where(np.isnan(self.pmf_function[:,4]) | np.isinf(self.pmf_function[:,4]), 900, self.pmf_function[:,4])
+        self.pmf_function[:,5] = np.where(self.pmf_function[:,5] > 50, 900, self.pmf_function[:,5])
+        self.pmf_function[:,5] = np.where(np.isnan(self.pmf_function[:,5]) | np.isinf(self.pmf_function[:,5]), 900, self.pmf_function[:,5])
+
+        if "JC" in path:
+            self.ff_type = "JC"
+            self.pmf_function[:,6] = np.where(self.pmf_function[:,6] > 50, 900, self.pmf_function[:,6])
+            self.pmf_function[:,6] = np.where(np.isnan(self.pmf_function[:,6]) | np.isinf(self.pmf_function[:,6]), 900, self.pmf_function[:,6])
+        else:
+            self.ff_type = "dang"
+            
     def energies(self, type, distances):
         distances = np.asarray(distances)
         sorted_distances = self.pmf_function[:, 0]  # First column contains sorted distances
@@ -77,40 +81,21 @@ class PMF:
         return self.pmf_function[index, type+1]
     
 class Bias:
-    def __init__(self, target=100, path=None):
-        if path is None:
-            self.bias = np.zeros(target)
+    def __init__(self, max_size=200, path=None, center=0, type="harmonic", force_constant=0.0):
+        self.max_size = max_size
+        self.type = type
+        self.center = center
+        if type == "linear":
+            if path is None:
+                self.bias = np.zeros(max_size)
+            else:
+                self.bias = np.loadtxt(path)
+        elif type == "harmonic":
+            self.center = center
+            self.force_constant = force_constant
         else:
-            self.bias = np.loadtxt(path)
+            raise ValueError("Invalid bias type")
 
     def denergy(self, new, old):
-        try: 
-            old_bias = self.bias[old-1]
-            new_bias = self.bias[new-1]
-            dE_bias = new_bias - old_bias
-        except:
-            dE_bias = 0 
-        return dE_bias
-    
-    def energy(self, size):
-        try:
-            return self.bias[size-1]
-        except:
-            return 0
-        
-    def update(self, distribution):
-        new_potential = np.zeros_like(self.bias) # will likely need to change this to account for new size
-        pivot_bin = np.argmax(distribution)
-        n_star = distribution[pivot_bin]
-        n_star_m = 1 / n_star
-        
-        for i in range(len(distribution)):
-            if distribution[i] > 0:
-                new_potential[i] = self.bias[i]  + 0.6*np.log(distribution[i] / n_star)
-            else:
-                new_potential[i] = self.bias[pivot_bin] + 0.6*np.log(n_star_m)
-        
-        # Re-shift potentials to ensure the reference state is 0kBT.
-        new_potential -= new_potential[1]
-        self.bias = new_potential
-        return self.bias
+        # Hard coding massive bias for moves that lead to clusters larger than max_size
+        # Might need to move this to acc
