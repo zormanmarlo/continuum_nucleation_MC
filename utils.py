@@ -98,4 +98,22 @@ class Bias:
 
     def denergy(self, new, old):
         # Hard coding massive bias for moves that lead to clusters larger than max_size
-        # Might need to move this to acc
+        # Might need to move this to acceptance criteria in order to avoid overflow errors
+        if new >= self.max_size:
+            bias = 100000
+        else:
+            if self.type == "harmonic":
+                bias = self.force_constant/2*(new-self.center)**2 - self.force_constant/2*(old-self.center)**2
+            elif self.type == "linear":
+                bias = self.bias[new-1] - self.bias[old-1]
+        return bias
+    
+    def energy(self, size):
+        if size >= self.max_size:
+            bias = 100000
+        else:
+            if self.type == "harmonic":
+                bias = self.force_constant/2*(size-self.center)**2
+            elif self.type == "linear":
+                bias = self.bias[size-1]
+        return bias
