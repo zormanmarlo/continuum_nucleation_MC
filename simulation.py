@@ -230,6 +230,4 @@ if __name__ == "__main__":
         with mp.Pool(processes=args.np) as pool:
             print(f"Running {np} markov chains")
             print("Running equilibration")
-            simulations = pool.map(equilibration_run, simulations)
-            print("Running production")
-            simulations = pool.map(production_run, simulations)
+            simulations = pool.map(equilibration_run, simulati

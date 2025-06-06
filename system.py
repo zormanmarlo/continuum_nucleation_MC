@@ -626,30 +626,4 @@ class System:
             old_pos_out = self.positions[target_idx_out].copy()
             new_pos_out = np.round(((np.random.rand(3) - 0.5) * self.box_length * 2), 3) % self.box_length
             while self.calc_dist(old_pos_out, new_pos_out) <= self.high_cutoff:
-                new_pos_out = np.round(((np.random.rand(3) - 0.5) * self.box_length * 2), 3) % self.box_length
-            
-            self.positions[target_idx_out] = new_pos_out
-            part_cluster_size = self.find_cluster_around_target(target_idx=target_idx)
-            new_energy_out = calc_energy(target_idx_out, self.positions, self.types, self.box_length, self.clust_cutoff, self.counter_cutoff, part_cluster_size, self.pmf)
-            w = np.exp(-new_energy_out / self.kT)
-
-            wold += w
-            self.positions[target_idx_out] = old_pos_out
-
-        self.tmp_target_clust_idx = self.target_clust_idx.copy()
-        self.target_clust_idx = self.find_cluster_around_target()
-        bias_energy = self.bias.denergy(len(self.target_clust_idx), len(self.tmp_target_clust_idx))
-
-        delta_energy = new_energy - old_energy
-        self.energy += delta_energy
-        self.bias_energy += bias_energy
-
-        avbmc_energy = np.exp(-bias_energy/self.kT) * (wnew/wold) * (self.Vin / self.Vout) * ((self.num_particles - len(self.tmp_target_clust_idx)) / (Nin + 1)) * ((len(self.tmp_target_clust_idx)) / (len(self.tmp_target_clust_idx)+1))
-        
-        acc_prob = min(1, avbmc_energy)
-        if np.random.rand() >= acc_prob:
-            self.positions[target_idx] = old_pos
-            self.energy -= delta_energy
-            self.bias_energy -= bias_energy
-            self.rejections[4] += 1
-            self.target_clust_idx = self.tmp_target_clust_idx
+       
