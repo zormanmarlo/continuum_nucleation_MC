@@ -85,7 +85,7 @@ def calc_energy(particle_idx, positions, types, box_length, cutoff, energy_table
 
             # Pre-compute energies for each type of interaction
             fully_screened_size = 55
-            power = 0.45
+            power = 0.55
             if cluster_size > 3: 
                 screened_prop = (cluster_size/fully_screened_size)**power * (1-0.2) + 0.2
             else:
@@ -98,8 +98,6 @@ def calc_energy(particle_idx, positions, types, box_length, cutoff, energy_table
                 np.sum(pmf.energies(1, cutoff_distances[type_1_1_mask])) +
                 np.sum(pmf.energies(1, cutoff_distances[bonded_1_1_mask]))*unscreened_prop + 
                 np.sum(pmf.energies(2, cutoff_distances[type_0_1_mask])) +
-                np.sum(pmf.energies(5, cutoff_distances[like_bulk_mask]))*screened_prop +
-                np.sum(pmf.energies(5, cutoff_distances[like_bulk_mask]))*unscreened_prop +
                 np.sum(pmf.energies(3, cutoff_distances[bonded_0_0_mask]))*screened_prop +
                 np.sum(pmf.energies(4, cutoff_distances[bonded_1_1_mask]))*screened_prop)
             
