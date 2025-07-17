@@ -45,64 +45,18 @@ def calc_energy(particle_idx, positions, types, box_length, cutoff, energy_table
             cutoff_distances = distances[within_cutoff]
             cutoff_positions = positions[within_cutoff]
             cutoff_types = types[within_cutoff]
-
-            # Find particles to use screened potential for
-            unlike_bonded_mask = (cutoff_distances < clust_cutoff) & (cutoff_types != type1)
-            cluster_size = len(cluster_size)
-            # counter_cutoff = 1 / (1 + np.exp(-0.25 * (cluster_size - 33))) * (10 - counter_cutoff) + counter_cutoff
-            counter_cutoff = 10
-            like_candidates_mask = (cutoff_distances < counter_cutoff) & (cutoff_types == type1)
-            like_cutoff = 5
-            like_bulk_mask = (cutoff_distances > like_cutoff) & (cutoff_types == type1)
-            
-            # For these candidates, check if they are bonded to an unlike particle
-            bonded_to_unlike = np.any(
-                np.linalg.norm(
-                    cutoff_positions[like_candidates_mask, None, :] -
-                    cutoff_positions[unlike_bonded_mask, :],
-                    axis=2
-                ) < clust_cutoff,
-                axis=1
-            )
-            
-            # Final mask for "like-bonded" particles
-            like_bonded_mask = like_candidates_mask.copy()
-            like_bonded_mask[like_candidates_mask] = bonded_to_unlike
-
-            # Step 3: Override the original like-like interaction mask
-            # Separate 0-0 and 1-1 masks for original interactions
+		
+            # Apply type masks
             type_0_0_mask = (cutoff_types == 0) & (type1 == 0)
             type_1_1_mask = (cutoff_types == 1) & (type1 == 1)
             type_0_1_mask = (cutoff_types != type1)
 
-            # Modified like-bonded masks for 0-0 and 1-1 interactions
-            bonded_0_0_mask = (cutoff_types == 0) & (type1 == 0) & like_bonded_mask
-            bonded_1_1_mask = (cutoff_types == 1) & (type1 == 1) & like_bonded_mask
-
-            type_0_0_mask = type_0_0_mask & ~like_bonded_mask
-            type_1_1_mask = type_1_1_mask & ~like_bonded_mask
-            type_0_1_mask = type_0_1_mask & ~like_bulk_mask
-
-            # Pre-compute energies for each type of interaction
-            fully_screened_size = 55
-            power = 0.45
-            if cluster_size > 3: 
-                screened_prop = (cluster_size/fully_screened_size)**power * (1-0.2) + 0.2
-            else:
-                screened_prop = 0
-            unscreened_prop = 1 - screened_prop
-
             energy = (
                 np.sum(pmf.energies(0, cutoff_distances[type_0_0_mask])) +
-                np.sum(pmf.energies(0, cutoff_distances[bonded_0_0_mask]))*unscreened_prop + 
                 np.sum(pmf.energies(1, cutoff_distances[type_1_1_mask])) +
-                np.sum(pmf.energies(1, cutoff_distances[bonded_1_1_mask]))*unscreened_prop + 
-                np.sum(pmf.energies(2, cutoff_distances[type_0_1_mask])) +
-                np.sum(pmf.energies(5, cutoff_distances[like_bulk_mask]))*screened_prop +
-                np.sum(pmf.energies(5, cutoff_distances[like_bulk_mask]))*unscreened_prop +
-                np.sum(pmf.energies(3, cutoff_distances[bonded_0_0_mask]))*screened_prop +
-                np.sum(pmf.energies(4, cutoff_distances[bonded_1_1_mask]))*screened_prop)
-            
+                np.sum(pmf.energies(2, cutoff_distances[type_0_1_mask])))
+           
+	    # hard coded anti-overlap 
             if np.any(cutoff_distances < 1.5):
                 energy = 10000
 
@@ -256,41 +210,43 @@ class System:
 
     def calc_full_energy(self):
         self.energy = 0.0
-        for i in range(self.num_particles):
-            for j in range(self.num_particles):
-                if i < j:
-                    distance = self.calc_dist(self.positions[i], self.positions[j])
-                    if distance < self.cut_off:
-                        dist_idx = np.searchsorted(self.energy_table[:, 0], distance) - 1
-                        if self.types[i] == 0 and self.types[j] == 0:
-                            # self.energy += self.energy_table[dist_idx, 0]
-                            self.energy += self.pmf.energy(0, distance)
-                        if self.types[i] == 1 and self.types[j] == 1:
-                            self.energy += self.pmf.energy(1, distance)
-                            # self.energy += self.energy_table[dist_idx, 1]
-                        if (self.types[i] == 0 and self.types[j] == 1) or (self.types[i] == 1 and self.types[j] == 0):
-                            self.energy += self.pmf.energy(2, distance)
-                            # self.energy += self.energy_table[dist_idx, 2]
-                        # Specialized potential for like particles in the bonded region
-                        if (self.types[i] == 0 and self.types[j] == 0) or (self.types[i] == 1 and self.types[j] == 1):
-                            # dist = self.calc_dist(particle1.position, particle2.position)
-                            if distance < self.counter_cutoff:
-                                # Check for a common bonding particle of a different type
-                                for bonding_particle in range(self.num_particles):
-                                    if self.types[bonding_particle] != self.types[i]:
-                                        dist1 = self.calc_dist(self.positions[i], self.positions[bonding_particle])
-                                        dist2 = self.calc_dist(self.positions[i], self.positions[bonding_particle])
-
-                                        # Both particles must be within the bonded region of the bonding particle
-                                        if dist1 < self.clust_cutoff and dist2 < self.clust_cutoff:
-                                            if self.types[i] == 0:
-                                                self.energy -= self.pmf.energy(0, distance)
-                                                self.energy += self.pmf.energy(3, distance)
-                                            elif self.types[j] == 1:
-                                                self.energy -= self.pmf.energy(1, distance)
-                                                self.energy += self.pmf.energy(4, distance)
-                                            break  # Exit the loop once a valid bonding particle is found
-
+# COMMENTED THIS OUT BECAUSE IT SEEMS TO BE BROKEN
+# Artificially starting energy at 0, this is physically wrong but should work for tracking purposes
+#        for i in range(self.num_particles):
+#            for j in range(self.num_particles):
+#                if i < j:
+#                    distance = self.calc_dist(self.positions[i], self.positions[j])
+#                    if distance < self.cut_off:
+#                        dist_idx = np.searchsorted(self.energy_table[:, 0], distance) - 1
+#                        if self.types[i] == 0 and self.types[j] == 0:
+#                            # self.energy += self.energy_table[dist_idx, 0]
+#                            self.energy += self.pmf.energy(0, distance)
+#                        if self.types[i] == 1 and self.types[j] == 1:
+#                            self.energy += self.pmf.energy(1, distance)
+#                            # self.energy += self.energy_table[dist_idx, 1]
+#                        if (self.types[i] == 0 and self.types[j] == 1) or (self.types[i] == 1 and self.types[j] == 0):
+#                            self.energy += self.pmf.energy(2, distance)
+#                            # self.energy += self.energy_table[dist_idx, 2]
+#                        # Specialized potential for like particles in the bonded region
+#                        if (self.types[i] == 0 and self.types[j] == 0) or (self.types[i] == 1 and self.types[j] == 1):
+#                            # dist = self.calc_dist(particle1.position, particle2.position)
+#                            if distance < self.counter_cutoff:
+#                                # Check for a common bonding particle of a different type
+#                                for bonding_particle in range(self.num_particles):
+#                                    if self.types[bonding_particle] != self.types[i]:
+#                                        dist1 = self.calc_dist(self.positions[i], self.positions[bonding_particle])
+#                                        dist2 = self.calc_dist(self.positions[i], self.positions[bonding_particle])
+#
+#                                        # Both particles must be within the bonded region of the bonding particle
+#                                        if dist1 < self.clust_cutoff and dist2 < self.clust_cutoff:
+#                                            if self.types[i] == 0:
+#                                                self.energy -= self.pmf.energy(0, distance)
+#                                                self.energy += self.pmf.energy(3, distance)
+#                                            elif self.types[j] == 1:
+#                                                self.energy -= self.pmf.energy(1, distance)
+#                                                self.energy += self.pmf.energy(4, distance)
+#                                            break  # Exit the loop once a valid bonding particle is found
+#
         self.bias_energy = self.bias.energy(len(self.target_clust_idx))
         return self.energy
 
@@ -331,9 +287,6 @@ class System:
             self.bias_energy -= bias_energy
             self.target_clust_idx = self.tmp_target_clust_idx
             self.rejections[0] += 1
-        # else:
-        #     if step_num == 
-        #     print(new_energy, old_energy)
 
     def swap(self, particle_idx):
         self.attempts[0] += 1
@@ -377,8 +330,6 @@ class System:
             self.rejections[1] += 1 
             return
         target_idx = np.random.choice(Nin_idx)
-        # while target_idx == 0:
-        #     target_idx = np.random.choice(Nin_idx)
 
         part_cluster_size = self.find_cluster_around_target(target_idx=target_idx)
         old_energy = calc_energy(target_idx, self.positions, self.types, self.box_length, self.cut_off, self.energy_table, self.clust_cutoff, self.counter_cutoff, self.concentration, part_cluster_size, self.pmf)
@@ -388,7 +339,6 @@ class System:
         while self.calc_dist(old_pos, new_pos) <= self.high_cutoff:
             new_pos = np.round(((np.random.rand(3) - 0.5) * self.box_length * 2), 3) % self.box_length
 
-        # self.particles[target_idx].position = new_pos
         self.positions[target_idx] = new_pos
 
         self.tmp_target_clust_idx = self.target_clust_idx.copy()
@@ -400,10 +350,7 @@ class System:
         delta_energy = new_energy - old_energy
         self.energy += delta_energy
         self.bias_energy += bias_energy
-        # exp_factor = (-(delta_energy+bias_energy)/self.kT)*self.Vout/self.Vin*(Nin)/(self.num_particles-Nin+1)
-        # print(exp_factor)
         avbmc_energy = np.exp(np.clip((-(delta_energy+bias_energy)/self.kT)*self.Vout/self.Vin*(Nin)/(self.num_particles-Nin+1), -500, 500))
-        # avbmc_energy = np.exp((-(delta_energy+bias_energy)/self.kT)*self.Vout/self.Vin*(Nin)/(self.num_particles-Nin+1))
 
         acc_prob = min(1, avbmc_energy)
         if np.random.rand() >= acc_prob:

@@ -1,7 +1,7 @@
 # CONCENTRATION
 # TODO: add concentration option instead
-box_length = 170
-num_particles = 600
+box_length = 33
+num_particles = 468
 
 # SIMULATION SETTINGS
 # equilibrations do not output to files
@@ -10,7 +10,7 @@ equil_steps = 0
 prod_steps = 1000000
 output_interval = 1000
 internal_interval = 1000
-seed = 11
+seed = 14
 
 # BIAS SETTINGS
 ## set these to zero for no bias or restraints
@@ -24,10 +24,10 @@ k = 0
 # MOVE RATES
 # max_trans is the initial maximum translation rate, but will be tuned (within 0.01 Å to 10 Å according to acceptance rates)
 avbmc_rate = 0.2
-nvt_rate = 0.0
-translation_rate = 0.8
+nvt_rate = 0.1
+translation_rate = 0.7
 swap_rate = 0.0
-max_trans = 4.2
+max_trans = 2
 
 # CLUSTER DEFINITION
 # upper and lower cutoffs are the bounds for AVBMC insertions, clust_cutoff is cutoff for the Stilinger cluster definition

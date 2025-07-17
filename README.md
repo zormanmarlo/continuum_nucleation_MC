@@ -1,7 +1,7 @@
 # Continuum Monte Carlo Model for Simulation of Nucleation
 
 ## Overview
-This code enables simulation of speciation and nucleation in a continuous coordinate space. Interactions are calculated based on a user-supplied set of tabulated potentials, which should be placed in the potentials/ directory. Repulsive potentials are switched from the infinitely dilute form to a screened form as a function of cluster size when two like ions are within the clus_cutoff of the same unlike ion and within the counter_cutoff of each other. For now, screened potentials are hardcoded for the JC and Dang forcefields. YOU MUST set whether you are using Dange or JC by copying the specific _FF_system.py_ file to _system.py_. There is a much better way of doing this, it is on the todo list.
+This code enables simulation of speciation and nucleation in a continuous coordinate space. Ions are represented as spherical particles. Interactions are calculated based on a user-supplied set of tabulated potentials, which should be placed in the potentials/ directory.
  
 ## Use example
 Information for a simulation run is contained in the config file. 
