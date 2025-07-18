@@ -1,7 +1,7 @@
-# Continuum Monte Carlo Model for Simulation of Nucleation
+# Monte Carlo Model for Simulation of Ion Speciation
 
 ## Overview
-This code enables simulation of speciation and nucleation in a continuous coordinate space. Ions are represented as spherical particles. Interactions are calculated based on a user-supplied set of tabulated potentials, which should be placed in the potentials/ directory.
+A Monte Carlo code that simulates speciation and nucleation of ions in a continuous coordinate space. Ions are represented as spherical particles. Interactions are calculated based on a user-supplied set of tabulated potentials, which should be placed in the potentials/ directory.
  
 ## Use example
 Information for a simulation run is contained in the config file. 
