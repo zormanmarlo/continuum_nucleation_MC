@@ -51,7 +51,7 @@ def calc_energy_numba(positions, types, particle_idx, overlap_cutoff, cutoff, bo
         
         # Check cutoff (20^2 = 400)
         cutoff_sq = cutoff * cutoff
-        if dist_sq < 400:
+        if dist_sq < cutoff_sq:
             dist = np.sqrt(dist_sq)
             min_dist_sq = min(min_dist_sq, dist_sq)
             
@@ -88,7 +88,7 @@ def calc_energy_numba(positions, types, particle_idx, overlap_cutoff, cutoff, bo
     
     # Hard-coded anti-overlap (1.5^2 = 2.25)
     overlap_cutoff_sq = overlap_cutoff * overlap_cutoff
-    if min_dist_sq < 2.25:
+    if min_dist_sq < overlap_cutoff_sq:
         energy = 10000.0
         
     return energy

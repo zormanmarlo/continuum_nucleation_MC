@@ -25,5 +25,4 @@ lower_cutoff = 2.5
 clust_cutoff = 3.5
 
 # INPUT FILES
-ff_path = JC_NaCl.txt
 input_path = none
