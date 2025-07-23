@@ -49,4 +49,4 @@ python simulation.py -config configs/test_config.txt -jobname my_sim -path ./res
 - `target_cluster-XX.out`: Size of cluster around particle 0
 - `stats-XX.log`: Monte Carlo move acceptance rates
 
-## SEE US_FILES FOR EXAMPLES ON HOW TO PERFORM UMBRELLA SAMPLING AND ADAPTIVE UMBRELLA SAMPLING
+#### SEE US_FILES FOR EXAMPLES ON HOW TO PERFORM UMBRELLA SAMPLING AND ADAPTIVE UMBRELLA SAMPLING
