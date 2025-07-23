@@ -1,8 +1,6 @@
 import os
-import sys
 import shutil
 import argparse
-import time
 
 import cProfile
 import pstats
@@ -10,160 +8,101 @@ import pstats
 import numpy as np
 import pickle as pkl
 import multiprocessing as mp
-import matplotlib.pyplot as plt
-from scipy.stats import ks_2samp
 
 from system import System
 from utils import *
+from config import Config
 
 class Simulation:
-    def __init__(self, config_file, jobname, ID=0, path="."):
-        self.parameters = self.read_config(config_file)
+    def __init__(self, config_file, jobname, ID=0, path=".", multi_inputs=False):
+        '''Initialize simulation with configuration, system setup, and output file paths'''
+        self.config = Config(config_file)
+        
         self.ID = str(ID).zfill(2)
         self.path = path
-
-        self.parameters["seed"] = self.parameters["seed"] + ID
-        print(f"Using seed from from config file: {self.parameters['seed']}")
-        np.random.seed(self.parameters["seed"])
-        
-        self.system = System(self.parameters["box_length"], self.parameters["num_particles"], s=self.parameters["seed"], target_max=self.parameters["max_target"], 
-                             pmf_path=self.parameters["ff_file"], bias_path=self.parameters["bias_file"], upper_cutoff=self.parameters["upper_cutoff"], 
-                             lower_cutoff=self.parameters["lower_cutoff"], clust_cutoff=self.parameters["clust_cutoff"], max_trans=self.parameters["max_trans"],
-                             counter_cutoff=self.parameters["counter_cutoff"], center=self.parameters["center"], k=self.parameters["k"], id=self.ID)
-        
-        self.system.init(input_path=self.parameters["input_file"])
-        self.clust_sizes, self.target_clust = self.system.find_clusters()
-        self.target_sizes = [len(self.target_clust)]
-
         self.jobname = jobname
-        self.avbmc_rate = self.parameters["avbmc_rate"]
-        self.translation_rate = self.parameters["translation_rate"]
-        self.nvt_rate = self.parameters["nvt_rate"]
-        self.swap_rate = self.parameters["swap_rate"]
-        if self.parameters["nvt_rate"] + self.parameters["avbmc_rate"] + self.parameters["translation_rate"] + self.parameters["swap_rate"] < 0.99:
-            print(self.parameters["nvt_rate"] + self.parameters["avbmc_rate"] + self.parameters["translation_rate"] + self.parameters["swap_rate"])
-            raise ValueError("Rates do not sum to one")
-        with open(f'{self.path}/{self.jobname}/stats-{self.ID}.log', 'a') as f:
-            f.write(f'# step translations in-out out-in target-in-out target-out-in\n')
-        
 
-    def read_config(self, config_file):
-        with open(config_file, 'r') as f:
-            parameters = {}
-            for line in f:
-                if "#" not in line:
-                    tmp = line.split()
-                    if tmp == []:
-                        continue
-                    key, value = tmp[0], tmp[-1]
-                    if value.isdigit():
-                        parameters[key] = int(value)
-                    elif is_float(value):
-                        parameters[key] = float(value)
-                    else:
-                        if value.lower() == "none":
-                            parameters[key] = None
-                        else:
-                            parameters[key] = value
-        return parameters
-    
+        logger.info(f"Using seed from config file: {self.config.seed + ID}")
+        np.random.seed(self.config.seed + ID)
+        
+        self.system = System(self.config, ID)
+        self.system.init_positions(input_path=self.config.input_path, multi=multi_inputs)
+        
+        
+        # Pre-build file paths for cleaner code
+        self.output_dir = f'{self.path}/{self.jobname}'
+        self.stats_file = f'{self.output_dir}/stats-{self.ID}.log'
+        self.energy_file = f'{self.output_dir}/E-{self.ID}.log'
+        self.traj_file = f'{self.output_dir}/traj-{self.ID}.xyz'
+        self.clusters_file = f'{self.output_dir}/clusters-{self.ID}.out'
+        self.target_cluster_file = f'{self.output_dir}/target_cluster-{self.ID}.out'
+        if self.system.bias is not None and self.system.bias.type == 'harmonic':
+            self.colvar_file = f'{self.output_dir}/colvar_{self.system.bias.center}.out'
+        
+        with open(self.stats_file, 'a') as f:
+            move_headers = ' '.join(f'{name}_acceptance' for name in self.system.move_names)
+            f.write(f'# step {move_headers}\n')
+        
     def clean_dir(self):
-        if os.path.exists(f'{self.path}/{self.jobname}/colvar_{self.system.bias.center}.out'):
-            os.remove(f'{self.path}/{self.jobname}/colvar_{self.system.bias.center}.out')
-        if os.path.exists(f'{self.path}/{self.jobname}/E-{self.ID}.log'):
-            os.remove(f'{self.path}/{self.jobname}/E-{self.ID}.log')
-        if os.path.exists(f'{self.path}/{self.jobname}/traj-{self.ID}.xyz'):
-            os.remove(f'{self.path}/{self.jobname}/traj-{self.ID}.xyz')
-        if os.path.exists(f'{self.path}/{self.jobname}/clusters-{self.ID}.out'):
-            os.remove(f'{self.path}/{self.jobname}/clusters-{self.ID}.out')
-        if os.path.exists(f'{self.path}/{self.jobname}/target_cluster-{self.ID}.out'):
-            os.remove(f'{self.path}/{self.jobname}/target_cluster-{self.ID}.out')
-        if os.path.exists(f'{self.path}/{self.jobname}/stats-{self.ID}.log'):
-            os.remove(f'{self.path}/{self.jobname}/stats-{self.ID}.log')
+        '''Remove all existing output files to ensure clean simulation start'''
+        files_to_clean = [
+            self.energy_file,
+            self.traj_file,
+            self.clusters_file,
+            self.target_cluster_file,
+            self.stats_file
+        ]
+        if hasattr(self, 'colvar_file'):
+            files_to_clean.append(self.colvar_file)
+            
+        for file_path in files_to_clean:
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
     def write_output(self, step):
-        if self.system.bias.center != 0:
-            with open(f"{self.path}/{self.jobname}/colvar_{self.system.bias.center}.out", "a") as f:
-                f.write(f"{step} {len(self.target_clust)} {self.system.bias_energy}\n")
-        with open(f'{self.path}/{self.jobname}/E-{self.ID}.log', 'a') as f:
+        '''Write current simulation state to all output files including energy, trajectory, clusters, and statistics'''
+        # Get current cluster information
+        clust_sizes, target_clust = self.system.find_clusters()
+        
+        # Write collective variable output (for umbrella sampling)
+        if hasattr(self, 'colvar_file'):
+            with open(self.colvar_file, 'a') as f:
+                f.write(f'{step} {len(target_clust)} {self.system.bias_energy}\n')
+        
+        # Write energy output
+        with open(self.energy_file, 'a') as f:
             f.write(f'{step} {self.system.energy} {self.system.bias_energy}\n')
-        with open(f'{self.path}/{self.jobname}/traj-{self.ID}.xyz', 'a') as f:
-            f.write(f'  {self.parameters["num_particles"]}\n')
+        
+        # Write trajectory output
+        with open(self.traj_file, 'a') as f:
+            f.write(f'  {self.config.num_particles}\n')
             f.write(f'  Step: {step}\n')
             for i, particle in enumerate(self.system.positions):
-                if self.system.types[i] == 0:
-                    f.write(f'H {particle[0]:>6.2f} {particle[1]:>6.2f} {particle[2]:>6.2f}\n')
-                else:
-                    f.write(f'O {particle[0]:>6.2f} {particle[1]:>6.2f} {particle[2]:>6.2f}\n')
-        with open(f'{self.path}/{self.jobname}/clusters-{self.ID}.out', 'a') as f:
-            clust_size_dist = np.histogram(self.clust_sizes, bins=np.arange(1, np.max(self.clust_sizes)+2))[0]
+                atom_type = 'H' if self.system.types[i] == 0 else 'O'
+                f.write(f'{atom_type} {particle[0]:>6.2f} {particle[1]:>6.2f} {particle[2]:>6.2f}\n')
+        
+        # Write cluster size distribution
+        with open(self.clusters_file, 'a') as f:
+            clust_size_dist = np.histogram(clust_sizes, bins=np.arange(1, np.max(clust_sizes)+2))[0]
             f.write(f'{step} {clust_size_dist}\n')
-        with open(f'{self.path}/{self.jobname}/target_cluster-{self.ID}.out', 'a') as f:
-            f.write(f'{step} {len(self.target_clust)} {self.target_clust}\n')
-        with open(f'{self.path}/{self.jobname}/stats-{self.ID}.log', 'a') as f:
-            f.write(f'{step} {self.system.rejections[0]/(self.system.attempts[0]+1)} {self.system.rejections[1]/(self.system.attempts[1]+1)} {self.system.rejections[2]/(self.system.attempts[2]+1)} {self.system.rejections[3]/(self.system.attempts[3]+1)} {self.system.rejections[4]/(self.system.attempts[4]+1)}\n')
         
-        for i in range(len(self.system.rejections)):
-            self.system.rejections[i] = 0
-            self.system.attempts[i] = 0
+        # Write target cluster information
+        with open(self.target_cluster_file, 'a') as f:
+            f.write(f'{step} {len(target_clust)} {target_clust}\n')
         
-    def step(self, step):
-        tmp = np.random.rand()
-        init_coords = self.system.positions[0].copy()
-        # Translation move
-        if tmp <= self.parameters["translation_rate"]:
-            # for particle in range(1, self.parameters["num_particles"]):
-            #     self.system.translation(particle)
-            particle = np.random.randint(self.parameters["num_particles"])
-            # # while particle == 0:
-            # #     particle = np.random.randint(self.parameters["num_particles"])
-            self.system.translation(particle)
-            movetype = "translation"
-        # AVBMC move
-        elif tmp <= self.parameters["translation_rate"] + self.parameters["swap_rate"]:
-            particle = np.random.randint(self.parameters["num_particles"])
-            # while particle == 0:
-            #     particle = np.random.randint(self.parameters["num_particles"])
-            self.system.swap(particle)
-            movetype = "swap"
-        elif tmp <= self.parameters["translation_rate"] + self.parameters["swap_rate"] + self.parameters["avbmc_rate"]:
-            tmp2 = np.random.rand()
-            particle = np.random.randint(self.parameters["num_particles"])
-            Nin, Nin_idx = self.system.calc_in(particle)
-            if (Nin == 1 and (0 in Nin_idx)):
-                tmp = 1
-            # in -> out move
-            if (tmp2 <= 0.5 and Nin >= 1):
-                self.system.inout_AVBMC(particle)
-                movetype = "inout"
-            # out -> in move
-            else:
-                self.system.outin_AVBMC(particle)
-                movetype = "outin"
-        # NVT Nucleation move
-        else:
-            self.target_clust = self.system.find_cluster_around_target()
-            particle = np.random.choice(self.system.target_clust_idx)
-            Nin, Nin_idx = self.system.calc_in(particle)
-            tmp2 = np.random.rand()
-            if (Nin == 1 and (0 in Nin_idx)):
-                tmp = 1
-
-            # in -> out move
-            if (tmp2 <= 0.5 and Nin >= 1):
-                # print(step)
-                self.system.nvt_inout_AVBMC(particle, Nin_idx)
-                movetype = "nvt_inout"
-            # out -> in move
-            else:
-                self.system.nvt_outin_AVBMC(particle, Nin_idx)
-                movetype = "nvt_outin"
-        final_coords = self.system.positions[0].copy()
-        # if init_coords[0] != final_coords[0] or init_coords[1] != final_coords[1] or init_coords[2] != final_coords[2]:
-        #     print("Particle 0 moved")
-        #     print("movetype: ", movetype)
+        # Write move acceptance statistics
+        with open(self.stats_file, 'a') as f:
+            rates = [move.get_acceptance_rate() for move in self.system.active_moves]
+            rates_str = ' '.join(f'{rate:.4f}' for rate in rates)
+            f.write(f'{step} {rates_str}\n')
+        
+        # Reset stats for active moves only
+        for move in self.system.active_moves:
+            move.reset_stats()
+        
 
 def equal_hist(dist):
+    '''Check if histogram distribution is sufficiently flat for adaptive umbrella sampling convergence'''
     max_diff = np.max(np.abs(np.diff(dist)))
     if max_diff <= 0.05 * np.mean(dist):
         return True
@@ -171,57 +110,53 @@ def equal_hist(dist):
         return False
 
 def production_run(sim):
-    current_min = 1
-    for s in range(1, sim.parameters["prod_steps"]):
-        sim.step(s)
-        # Niave translation acceptance rate adjustment
-#        if s % sim.parameters["internal_interval"] == 0:
-#            current_max = sim.system.max_displacement
-#            trans_rate = sim.system.rejections[0]/(sim.system.attempts[0]+1)
-#            if trans_rate < 0.55:
-#                sim.system.max_displacement *= 1.1
-#            if trans_rate > 0.65:
-#                sim.system.max_displacement *= 0.9
-#            # hardcoded bounds for maximum translation -- without this system will trend towards infinite max_displacements for dilute systems
-#            if trans_rate > 10:
-#                sim.system.max_displacement = current_max
-#            elif trans_rate < 0.01:
-#                sim.system.max_displacement = current_max
-#            print(sim.system.max_displacement)
-        if s % sim.parameters["output_interval"] == 0:
-            sim.clust_sizes, sim.target_clust = sim.system.find_clusters()
+    '''Execute production phase of simulation with periodic output writing'''
+    for s in range(1, sim.config.parameters["prod_steps"]):
+        sim.system.step()
+        if s % sim.config.parameters["output_interval"] == 0:
             sim.write_output(s)
     return sim
 
 def equilibration_run(sim):
-    for s in range(1, sim.parameters["equil_steps"]):
-        sim.step(s)
-        # Niave translation acceptance rate adjustment
-        if s % sim.parameters["internal_interval"] == 0:
-            if sim.system.concentration > 0.5: 
-                current_max = sim.system.max_displacement
-                trans_rate = sim.system.rejections[0]/(sim.system.attempts[0]+1)
-                if trans_rate < 0.55:
-                    sim.system.max_displacement *= 1.1
-                if trans_rate > 0.65:
-                    sim.system.max_displacement *= 0.9
-                if trans_rate > 10:
-                    sim.system.max_displacement = current_max
-                elif trans_rate < 0.01:
-                    sim.system.max_displacement = current_max
+    '''Execute equilibration phase with dynamic adjustment of translation move displacement'''
+    for s in range(1, sim.config.parameters["equil_steps"]):
+        sim.system.step()
+        # Translation acceptance rate adjustment
+        if s % sim.config.parameters["internal_interval"] == 0:
+            if sim.system.concentration > 0.5:
+                # Find translation move in active moves list
+                translation_move = None
+                for i, move_name in enumerate(sim.system.move_names):
+                    if move_name == 'translation':
+                        translation_move = sim.system.active_moves[i]
+                        break
+                
+                if translation_move is not None:
+                    current_max = sim.system.max_displacement
+                    trans_acceptance = translation_move.get_acceptance_rate()
+                    if trans_acceptance > 0.55:  # high acceptance = increase displacement
+                        sim.system.max_displacement *= 1.1
+                        translation_move.max_displacement = sim.system.max_displacement
+                    if trans_acceptance < 0.45:  # low acceptance = decrease displacement
+                        sim.system.max_displacement *= 0.9  
+                        translation_move.max_displacement = sim.system.max_displacement
+                    if trans_acceptance > 0.99 or trans_acceptance < 0.01:
+                        sim.system.max_displacement = current_max
+                        translation_move.max_displacement = current_max
     return sim
 
 if __name__ == "__main__":
     # Parse command line for settings
-    parser = argparse.ArgumentParser(description='S-I-M-U-L-A-T-E')
+    parser = argparse.ArgumentParser(description='?S-I-M-U-L-A-T-E?')
     parser.add_argument('-np', type=int, default=1, help='Number of processors')
     parser.add_argument('-jobname', type=str, default='JOB', help='Name of the job')
     parser.add_argument('-config', type=str, default="config.txt", help="Configuration file")
-    parser.add_argument('-adaptive', action='store_true', help="Run adaptive US or not")
+    parser.add_argument('-adapUS', action='store_true', help="Run adaptive US")
+    parser.add_argument('-multi_inputs', action='store_true', help="Use multiple input files (will add jobnum to input filepath in config: input.txt -> input.00.txt, input.01.txt, etc.)")
     parser.add_argument('-path', type=str, default=".", help="Path to save output")
     args = parser.parse_args()
 
-    print("Starting job: "+str(args.jobname))
+    logger.info("Starting job: "+str(args.jobname))
 
     # Set up directory and simulations
     if os.path.exists(args.path+"/"+args.jobname) and os.path.isdir(args.path+"/"+args.jobname):
@@ -231,26 +166,26 @@ if __name__ == "__main__":
         shutil.copy(args.config, f"{args.path}/{args.jobname}/config.txt")
 
     except OSError as error:
-        print(f'error creating directory -- exiting {args.path+"/"+args.jobname}: {error}')
-    simulations = [Simulation(args.config, args.jobname, ID=i, path=args.path) for i in range(args.np)]
+        logger.error(f'error creating directory -- exiting {args.path+"/"+args.jobname}: {error}')
+    simulations = [Simulation(args.config, args.jobname, ID=i, path=args.path, multi_inputs=args.multi_inputs) for i in range(args.np)]
     
     # Run simple simulation
-    if not args.adaptive:
+    if not args.adapUS:
         # Only pool if running more than one markov chain
         if args.np == 1:
-            # pr = cProfile.Profile()
-            # pr.enable()
+            pr = cProfile.Profile()
+            pr.enable()
             equilibration_run(simulations[0])
             production_run(simulations[0])
-            # pr.disable()
-            # ps = pstats.Stats(pr).sort_stats('cumulative')
-            # ps.print_stats(10)
+            pr.disable()
+            ps = pstats.Stats(pr).sort_stats('cumulative')
+            ps.print_stats(10)
         else:
             with mp.Pool(processes=args.np) as pool:
-                print(f"Running {np} markov chains")
-                print("Running equilibration")
+                logger.info(f"Running {args.np} markov chains")
+                logger.info("Running equilibration")
                 simulations = pool.map(equilibration_run, simulations)
-                print("Running production")
+                logger.info("Running production")
                 simulations = pool.map(production_run, simulations)
 
     # Run until potentials are converged
@@ -261,41 +196,48 @@ if __name__ == "__main__":
             simulations = pool.map(production_run, simulations)
 
         # Run biased simulations, iteratively updating bias
-        print("Generating initial bias")
+        logger.info("Generating initial bias")
         cont = True
-        orig_prod_steps = simulations[0].parameters["prod_steps"]
+        orig_prod_steps = simulations[0].config.parameters["prod_steps"]
         current_it = 0
         while cont:
             current_it += 1
             pkl.dump(simulations, open(f"{args.jobname}/system.pkl", "wb"))
 
-            cluster_counts = np.concatenate([sim.target_sizes for sim in simulations])
-            dist = np.histogram(cluster_counts, bins=np.arange(1, simulations[0].parameters["max_target"]+2))[0]
+            # Collect target cluster sizes from all simulations
+            cluster_counts = []
+            for sim in simulations:
+                _, target_clust = sim.system.find_clusters()
+                cluster_counts.append(len(target_clust))
+            cluster_counts = np.array(cluster_counts)
+            dist = np.histogram(cluster_counts, bins=np.arange(1, simulations[0].config.parameters["max_target"]+2))[0]
             with open(f"{args.jobname}/histograms.out", "a") as file:
                 file.write(f"{dist}\n")
             
             for sim in simulations:
                 sim.system.bias.update(dist)
-                # Reset data after each iteration, unclear if this is the best way to do this
-                sim.system.target_sizes = []
-                sim.target_sizes = []
+                # No need to reset target_sizes since we compute them on-demand
                 if all(dist > 0):
-                    sim.system.parameters.prod_steps = sim.system.parameters.prod_steps + orig_prod_steps*0.2
+                    sim.config.parameters["prod_steps"] = sim.config.parameters["prod_steps"] + int(orig_prod_steps*0.2)
             potential = simulations[0].system.bias.bias
             with open(f"{args.jobname}/potentials.out", "a") as file:
                 file.write(f"{potential}\n")
             
             with mp.Pool(processes=args.np) as pool:
                 simulations = pool.map(production_run, simulations, True)
-            print("updating bias")
+            logger.info("updating bias")
 
             if equal_hist(dist):
-                print(f"potential converged in {current_it} iterations -- ending run")
+                logger.info(f"potential converged in {current_it} iterations -- ending run")
                 potential = simulations[0].system.bias.bias
                 
-                # Save final system
-                sizes = np.concatenate([sim.target_sizes[-2 * sim.parameters["num_steps"] // sim.parameters["output_interval"]:] for sim in simulations])
-                dist = np.histogram(sizes, bins=np.arange(1, simulations[0].parameters["max_target"]+2))[0]
+                # Save final system - collect final cluster sizes
+                final_cluster_counts = []
+                for sim in simulations:
+                    _, target_clust = sim.system.find_clusters()
+                    final_cluster_counts.append(len(target_clust))
+                final_cluster_counts = np.array(final_cluster_counts)
+                dist = np.histogram(final_cluster_counts, bins=np.arange(1, simulations[0].config.parameters["max_target"]+2))[0]
                 with open(f"{args.jobname}/histograms.out", "a") as file:
                     file.write(f"{dist}\n")
                 with open(f"{args.jobname}/potentials.out", "a") as file:

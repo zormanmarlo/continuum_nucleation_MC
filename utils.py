@@ -1,81 +1,173 @@
-from scipy.interpolate import interp1d
 import numpy as np
-import random
+from numba import njit
+import logging
+
+def setup_logger():
+    '''Initialize logger for Monte Carlo simulation with appropriate formatting and handlers'''
+    logger = logging.getLogger('monte_carlo')
+    if not logger.handlers:
+        logger.setLevel(logging.INFO)
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    return logger
+
+logger = setup_logger()
 
 def is_float(value):
+    '''Check if a string value can be converted to float'''
     try:
         float(value)
         return True
     except ValueError:
         return False
+    
+@njit
+def calc_energy_numba(positions, types, particle_idx, overlap_cutoff, cutoff, box_length, sorted_distances, energy_col_0, energy_col_1, energy_col_2):
+    '''Calculate total energy of a particle using tabulated PMF with periodic boundary conditions and interpolation'''
+    pos = positions[particle_idx]
+    particle_type = types[particle_idx]
+    n_particles = len(positions)
+    
+    energy = 0.0
+    min_dist_sq = 1e10
+    
+    for i in range(n_particles):
+        if i == particle_idx:
+            continue
+            
+        # Calculate distance with PBC using squared distances
+        dx = positions[i, 0] - pos[0]
+        dy = positions[i, 1] - pos[1] 
+        dz = positions[i, 2] - pos[2]
+        
+        # Apply periodic boundary conditions
+        dx -= box_length * round(dx / box_length)
+        dy -= box_length * round(dy / box_length)
+        dz -= box_length * round(dz / box_length)
+        
+        dist_sq = dx*dx + dy*dy + dz*dz
+        
+        # Check cutoff (20^2 = 400)
+        cutoff_sq = cutoff * cutoff
+        if dist_sq < 400:
+            dist = np.sqrt(dist_sq)
+            min_dist_sq = min(min_dist_sq, dist_sq)
+            
+            other_type = types[i]
+            
+            # Determine interaction type and energy column
+            if particle_type == 0 and other_type == 0:
+                energy_col = energy_col_0
+            elif particle_type == 1 and other_type == 1:
+                energy_col = energy_col_1
+            else:
+                energy_col = energy_col_2
+            
+            # Binary search and interpolation
+            n_data = len(sorted_distances)
+            left = 0
+            right = n_data - 1
+            
+            while left < right - 1:
+                mid = (left + right) // 2
+                if sorted_distances[mid] <= dist:
+                    left = mid
+                else:
+                    right = mid
+            
+            # Linear interpolation
+            if left == n_data - 1:
+                energy += energy_col[left]
+            else:
+                x0, x1 = sorted_distances[left], sorted_distances[right]
+                y0, y1 = energy_col[left], energy_col[right]
+                weight = (dist - x0) / (x1 - x0)
+                energy += y0 + weight * (y1 - y0)
+    
+    # Hard-coded anti-overlap (1.5^2 = 2.25)
+    overlap_cutoff_sq = overlap_cutoff * overlap_cutoff
+    if min_dist_sq < 2.25:
+        energy = 10000.0
+        
+    return energy
 
-def generate_energy_table(path, num_bins=1000, cutoff=20.0):
-    data = np.loadtxt(path)
-    distances = data[:, 0]
-    precomputed_distances = np.linspace(0, cutoff, num_bins)
-    precomputed_energies = np.zeros((5, num_bins))
+@njit
+def find_neighbors_numba(positions, pos1, cutoff, box_length):
+    '''Find all particle indices within cutoff distance of given position using periodic boundary conditions'''
+    cutoff_squared = cutoff**2
+    neighbors = []
+    for i in range(positions.shape[0]):  # number of particles
+        dx = positions[i, 0] - pos1[0]
+        dy = positions[i, 1] - pos1[1]
+        dz = positions[i, 2] - pos1[2]
 
-    # Interpolate energies for each interaction type
-    for col in range(1, 4):
-        interp_func = interp1d(distances, data[:, col], kind='linear', fill_value="extrapolate")
-        precomputed_energies[col - 1] = interp_func(precomputed_distances)
+        # Apply periodic boundary conditions
+        dx -= box_length * round(dx / box_length)
+        dy -= box_length * round(dy / box_length)
+        dz -= box_length * round(dz / box_length)
 
-    combined = np.vstack((precomputed_distances, precomputed_energies)).T
-    return combined
+        dist_squared = dx**2 + dy**2 + dz**2
+        if dist_squared < cutoff_squared:
+            neighbors.append(i)
+    return neighbors
 
-class Particle:
-    def __init__(self, index, type, xyz):
-        self.idx = index
-        self.type = type
-        self.position = np.array(xyz)
-        self.cluster = None
+# Pre-compiled energy interpolation function
+@njit
+def interpolate_energy_numba(distances, sorted_distances, energies):
+    '''Interpolate energies from tabulated data using binary search and linear interpolation'''
+    n_distances = len(distances)
+    n_data = len(sorted_distances)
+    result = np.zeros(n_distances)
+    
+    for i in range(n_distances):
+        dist = distances[i]
+        
+        # Binary search for the right index
+        left = 0
+        right = n_data - 1
+        while left < right - 1:
+            mid = (left + right) // 2
+            if sorted_distances[mid] <= dist:
+                left = mid
+            else:
+                right = mid
+        
+        # Linear interpolation
+        if left == n_data - 1:
+            result[i] = energies[left]
+        else:
+            x0, x1 = sorted_distances[left], sorted_distances[right]
+            y0, y1 = energies[left], energies[right]
+            weight = (dist - x0) / (x1 - x0)
+            result[i] = y0 + weight * (y1 - y0)
+    
+    return result
 
 class PMF:
     def __init__(self, path):
+        '''Load potential of mean force data from file and prepare for interpolation'''
         self.pmf_function = np.loadtxt(path)
-        self.cut_off = 20.0
-        # clean up the bulk potentials
-        for i in range(4, self.pmf_function.shape[1]):
-            col = self.pmf_function[:, i]
-            col = np.where(col > 50, 900, col)
-            col = np.where(np.isnan(col) | np.isinf(col), 900, col)
-            self.pmf_function[:, i] = col
+        self.sorted_distances = self.pmf_function[:, 0]
+        # Pre-extract energy columns for faster access
+        self.energy_columns = [self.pmf_function[:, i+1] for i in range(3)]
 
     def energies(self, type, distances):
+        '''Calculate energies for given interaction type and array of distances using interpolation'''
         distances = np.asarray(distances)
-        sorted_distances = self.pmf_function[:, 0]  # First column contains sorted distances
-
-        # Binary search to find indices of the upper bound
-        indices = np.searchsorted(sorted_distances, distances)
-
-        # Clip indices to valid bounds to avoid overflow
-        indices = np.clip(indices, 1, len(sorted_distances) - 1)
-
-        # Get the left and right indices
-        left_indices = indices - 1
-        right_indices = indices
-
-        # Extract distances and energies for interpolation
-        left_distances = sorted_distances[left_indices]
-        right_distances = sorted_distances[right_indices]
-
-        left_energies = self.pmf_function[left_indices, type + 1]
-        right_energies = self.pmf_function[right_indices, type + 1]
-
-        # Compute weights for linear interpolation
-        weights = (distances - left_distances) / (right_distances - left_distances)
-
-        # Perform interpolation
-        interpolated_energies = left_energies + weights * (right_energies - left_energies)
-
-        return interpolated_energies
+        if len(distances) == 0:
+            return np.array([])
+        return interpolate_energy_numba(distances, self.sorted_distances, self.energy_columns[type])
 
     def energy(self, type, distance):
+        '''Calculate single energy value for given interaction type and distance using nearest neighbor lookup'''
         index = np.argmin(np.abs(self.pmf_function[:, 0] - distance))
         return self.pmf_function[index, type+1]
     
 class Bias:
     def __init__(self, max_size=200, path=None, center=0, type="harmonic", force_constant=0.0):
+        '''Initialize bias potential for umbrella sampling with harmonic or linear bias types'''
         self.max_size = max_size
         self.type = type
         self.center = center
@@ -91,6 +183,7 @@ class Bias:
             raise ValueError("Invalid bias type")
 
     def denergy(self, new, old):
+        '''Calculate change in bias energy between old and new cluster sizes'''
         # Hard coding massive bias for moves that lead to clusters larger than max_size
         # Might need to move this to acceptance criteria in order to avoid overflow errors
         if new >= self.max_size:
@@ -103,6 +196,7 @@ class Bias:
         return bias
     
     def energy(self, size):
+        '''Calculate bias energy for given cluster size'''
         if size >= self.max_size:
             bias = 100000
         else:
@@ -114,6 +208,7 @@ class Bias:
     
     # Update bias for adaptive US
     def update(self, distribution):
+        '''Update bias potential for adaptive umbrella sampling based on cluster size distribution'''
         new_potential = np.zeros_like(self.bias) # will likely need to change this to account for new size
         pivot_bin = np.argmax(distribution)
         n_star = distribution[pivot_bin]
