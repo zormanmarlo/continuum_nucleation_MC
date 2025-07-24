@@ -1,4 +1,5 @@
 import numpy as np
+import re
 from utils import is_float, Bias, logger
 
 class Config:
@@ -32,11 +33,11 @@ class Config:
         with open(config_file, 'r') as f:
             parameters = {}
             for line in f:
-                if "#" not in line:
-                    tmp = line.split()
-                    if tmp == []:
+                if "#" not in line[0]:
+                    match = re.match(r'^([^#=]+?)\s*=\s*([^\s#]+)', line)
+                    if not match:
                         continue
-                    key, value = tmp[0], tmp[-1]
+                    key, value = match.group(1).strip(), match.group(2).strip()
                     if value.isdigit():
                         parameters[key] = int(value)
                     elif is_float(value):
