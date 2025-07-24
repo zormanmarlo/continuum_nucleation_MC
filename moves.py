@@ -41,7 +41,6 @@ class TranslationMove(Move):
         new_pos = (old_pos + displacement) % (self.system.box_length)
 
         delta_energy, bias_energy = self.system.calc_energy_delta(particle_idx, new_pos, old_pos)
-        
         acc_prob = min(1, np.exp(np.clip((-(delta_energy+bias_energy)/self.system.kT), -500, 500)))
         if np.random.rand() >= acc_prob:
             # Reject move - position is already back at old_pos from calc_energy_delta
@@ -102,7 +101,6 @@ class InOutAVBMCMove(Move):
 
         delta_energy, bias_energy = self.system.calc_energy_delta(target_idx, new_pos, old_pos)
         avbmc_energy = np.exp(np.clip((-(delta_energy+bias_energy)/self.system.kT)*self.Vout/self.Vin*(Nin)/(self.system.num_particles-Nin+1), -500, 500))
-
         acc_prob = min(1, avbmc_energy)
         if np.random.rand() >= acc_prob:
             # Reject move - position is already back at old_pos from calc_energy_delta
@@ -246,7 +244,8 @@ class NVTInOutMove(Move):
         try:
             avbmc_energy = np.exp(-(delta_energy+bias_energy)/self.system.kT)*self.Vout/self.Vin*(Nin)/(self.system.num_particles-old_cluster_size+1)*(old_cluster_size/(old_cluster_size-1))
         except:
-            print("ZeroDivisionError")
+            # print("ZeroDivisionError")
+            # print(self.Vin, self.Vout, Nin, self.system.num_particles - old_cluster_size + 1, self.system.kT, old_cluster_size)
             avbmc_energy = 0
         acc_prob = min(1, avbmc_energy)
         if np.random.rand() >= acc_prob:

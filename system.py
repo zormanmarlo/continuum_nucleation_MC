@@ -179,7 +179,7 @@ class System:
             new_cluster = len(self.find_target_cluster())
             new_energy = self.calc_energy(particle_idx)
             delta_energy = new_energy - old_energy
-            delta_bias_energy = self.bias.denergy(old_cluster, new_cluster)
+            delta_bias_energy = self.bias.denergy(new_cluster, old_cluster)
 
         self.positions[particle_idx] = old_pos  # Reset position after calculation
         return delta_energy, delta_bias_energy
@@ -203,7 +203,7 @@ class System:
 
         # Set initial bias energy if applicable
         if self.bias is not None:
-            self.energy += self.bias.energy(len(self.target_clust_idx))
+            self.bias_energy = self.bias.energy(len(self.target_clust_idx))
         else:
             self.bias_energy = 0.0
     
