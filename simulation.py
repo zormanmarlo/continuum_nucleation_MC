@@ -121,28 +121,6 @@ def equilibration_run(sim):
     '''Execute equilibration phase with dynamic adjustment of translation move displacement'''
     for s in range(1, sim.config.parameters["equil_steps"]):
         sim.system.step()
-        # Translation acceptance rate adjustment
-        if s % sim.config.parameters["internal_interval"] == 0:
-            if sim.system.concentration > 0.5:
-                # Find translation move in active moves list
-                translation_move = None
-                for i, move_name in enumerate(sim.system.move_names):
-                    if move_name == 'translation':
-                        translation_move = sim.system.active_moves[i]
-                        break
-                
-                if translation_move is not None:
-                    current_max = sim.system.max_displacement
-                    trans_acceptance = translation_move.get_acceptance_rate()
-                    if trans_acceptance > 0.55:  # high acceptance = increase displacement
-                        sim.system.max_displacement *= 1.1
-                        translation_move.max_displacement = sim.system.max_displacement
-                    if trans_acceptance < 0.45:  # low acceptance = decrease displacement
-                        sim.system.max_displacement *= 0.9  
-                        translation_move.max_displacement = sim.system.max_displacement
-                    if trans_acceptance > 0.99 or trans_acceptance < 0.01:
-                        sim.system.max_displacement = current_max
-                        translation_move.max_displacement = current_max
     return sim
 
 if __name__ == "__main__":
