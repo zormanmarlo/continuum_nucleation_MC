@@ -114,9 +114,3 @@ avbmc_rate = 0.2
 - **`potentials.out`** - Evolution of bias potential during adaptation
 - **`system.pkl`** - Pickled system state for restarting/analysis
 - Standard output files (`E-XX.log`, `traj-XX.xyz`, etc.)
-
-### Advantages
-
-- **Automatic optimization** - No need to manually choose bias parameters
-- **Efficient sampling** - Rapidly converges to optimal bias for uniform sampling  
-- **Parallel execution** - Uses all processors to accelerate convergence

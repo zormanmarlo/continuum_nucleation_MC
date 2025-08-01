@@ -1,21 +1,22 @@
 # CONCENTRATION
-concentration = 5
-num_particles = 500
+concentration = 1
+num_particles = 2000
 
 # SIMULATION SETTINGS
 equil_steps = 0
-prod_steps = 1000000
+prod_steps = 100
 output_interval = 100
 internal_interval = 1000
 seed = 11
 
 # BIAS SETTINGS
-bias_type = none
+bias_type = linear
+max_target = 30
 
 # MOVE RATES
 avbmc_rate = 0.2
-nvt_rate = 0.0
-translation_rate = 0.8
+nvt_rate = 0.1
+translation_rate = 0.7
 swap_rate = 0.0
 max_displacement = 4.2
 

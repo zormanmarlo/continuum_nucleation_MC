@@ -64,9 +64,10 @@ class Config:
             self.bias = Bias(center=self.parameters['bias_center'], type='harmonic', force_constant=self.parameters['bias_k'])
         elif self.parameters['bias_type'] == 'linear':
             if 'bias_file' not in self.parameters:
-                logger.warning("Parameter 'bias_file' not set for linear bias. This is required.")
-                raise ValueError("Linear bias requires a bias file path")
-            self.bias = Bias(path=self.parameters['bias_file'], type='linear', max_size=self.parameters.get('max_target', 200))
+                logger.warning("Parameter 'bias_file' not set for linear bias. Setting bias to zero")
+                self.bias = Bias(type='linear', max_size=self.parameters.get('max_target', 200))
+            else:
+                self.bias = Bias(path=self.parameters['bias_file'], type='linear', max_size=self.parameters.get('max_target', 200))
         else:
             self.bias = None
     

@@ -1,0 +1,112 @@
+# =============================================================================
+# COMPLETE CONFIGURATION FILE TEMPLATE
+# Monte Carlo Nucleation Simulation - All Possible Parameters
+# =============================================================================
+
+# =============================================================================
+# SYSTEM SIZE PARAMETERS
+# Note: Must specify at least 2 of these 3 parameters. The third will be calculated.
+# =============================================================================
+box_length = 62.00                # Simulation box length (Angstroms)
+num_particles = 8              # Total number of particles  
+
+# =============================================================================
+# SIMULATION CONTROL PARAMETERS
+# =============================================================================
+equil_steps = 100000              # Number of equilibration steps
+prod_steps = 1000000              # Number of production steps
+output_interval = 1000            # Steps between output file writes
+internal_interval = 1000          # Steps between internal adjustments (displacement tuning)
+seed = 42                         # Random number generator seed
+
+# =============================================================================
+# THERMODYNAMIC PARAMETERS
+# =============================================================================
+kT = 0.592                        # Thermal energy (kB*T) - Default: 0.592
+ratio = 1:3                       
+
+# =============================================================================
+# MONTE CARLO MOVE RATES
+# Note: Only moves with rate > 0 will be active. Rates are automatically normalized.
+# AVBMC and NVT rates are automatically split 50/50 between in→out and out→in moves.
+# =============================================================================
+translation_rate = 0.8           # Rate for random translation moves
+swap_rate = 0.0                   # Rate for particle swap/repositioning moves
+avbmc_rate = 0.2                  # Rate for AVBMC (Aggregation-Volume-Bias) moves
+nvt_rate = 0.0                    # Rate for NVT nucleation moves with Rosenbluth sampling
+max_displacement = 4.2            # Maximum displacement distance for translations (Angstroms)
+
+# =============================================================================
+# CLUSTER ANALYSIS PARAMETERS
+# =============================================================================
+clust_cutoff = 4.0                # Distance cutoff for defining clusters (Angstroms)
+upper_cutoff = 6.0                # Upper cutoff distance for AVBMC moves (Angstroms)
+lower_cutoff = 2.0                # Minimum separation/lower energy cutoff (Angstroms) - Default: 1.5
+
+# =============================================================================
+# ENERGY CALCULATION PARAMETERS
+# =============================================================================
+energy_cutoff = 20.0              # Maximum energy cutoff for interactions - Default: 20.0
+lower_energy_cutoff = 1.5         # Hard overlap cutoff (same as lower_cutoff) - Default: 1.5
+
+# =============================================================================
+# INPUT/OUTPUT FILE PARAMETERS
+# =============================================================================
+ff_path = JC_NaCl.txt            # Force field file (relative to potentials/ directory)
+input_path = none                 # Initial config file (relative to inputs/ dir, "none" for random) - Default: none
+
+# =============================================================================
+# BIAS POTENTIAL PARAMETERS (for Umbrella Sampling)
+# =============================================================================
+bias_type = none                  # Bias type: "harmonic", "linear", or "none" - Default: none
+
+# --- Harmonic Bias Parameters (only used if bias_type = harmonic) ---
+bias_center = 10.0                # Center of harmonic bias potential - Default: 0.0
+bias_k = 1.0                      # Force constant for harmonic bias - Default: 1.0
+
+# --- Linear Bias Parameters (only used if bias_type = linear) ---
+bias_file = bias_potential.txt    # Path to tabulated bias potential file
+max_target = 200                  # Maximum target cluster size for adaptive US - Default: 200
+
+# =============================================================================
+# EXAMPLE CONFIGURATIONS FOR DIFFERENT SIMULATION TYPES
+# =============================================================================
+
+# --- Basic Nucleation Simulation ---
+# bias_type = none
+# translation_rate = 0.8, avbmc_rate = 0.2, nvt_rate = 0.0, swap_rate = 0.0
+
+# --- Umbrella Sampling with Harmonic Bias ---
+# bias_type = harmonic
+# bias_center = 15.0
+# bias_k = 0.5
+
+# --- Umbrella Sampling with Linear Bias ---
+# bias_type = linear
+# bias_file = my_bias_potential.txt
+# max_target = 150
+
+# --- High Temperature / Low Concentration ---
+# kT = 1.0
+# concentration = 0.01
+# max_displacement = 6.0
+
+# --- Dense System with More Swap Moves ---
+# concentration = 1.0
+# translation_rate = 0.6
+# swap_rate = 0.4
+# max_displacement = 2.0
+
+# =============================================================================
+# NOTES
+# =============================================================================
+# 1. Parameters can be integers, floats, or strings
+# 2. Use "none" (case-insensitive) to set parameters to None/null
+# 3. Lines starting with "#" are comments and ignored
+# 4. Empty lines are ignored
+# 5. Format: parameter_name = value (spaces around "=" are optional)
+# 6. The config parser automatically handles type conversion
+# 7. Missing parameters use hardcoded defaults where available
+# 8. System size parameters are validated for consistency
+# 9. Ion ratios support formats like "1:1", "2:1", "3:2", etc.
+# 10. File paths should not include directory prefixes (handled automatically)

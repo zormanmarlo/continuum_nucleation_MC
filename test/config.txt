@@ -1,11 +1,11 @@
 # CONCENTRATION
-box_length = 51.72367392516914
-num_particles = 1000
+concentration = 5
+num_particles = 500
 
 # SIMULATION SETTINGS
 equil_steps = 0
 prod_steps = 1000000
-output_interval = 1000
+output_interval = 100
 internal_interval = 1000
 seed = 11
 
@@ -24,5 +24,18 @@ upper_cutoff = 3.5
 lower_cutoff = 2.5
 clust_cutoff = 3.5
 
+sigma_na = 2.584     
+epsilon_na = 0.4184  
+charge_na = 1.0       
+
+# LJ parameters for Cl (type 1)  
+sigma_cl = 4.036     
+epsilon_cl = 0.4184  
+charge_cl = -1.0      
+
+# Electrostatic parameters
+dielectric = 5    
+
 # INPUT FILES
+ff_path = NaCl_corr.txt
 input_path = none
