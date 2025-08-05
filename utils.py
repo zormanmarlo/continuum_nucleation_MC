@@ -146,12 +146,42 @@ def interpolate_energy_numba(distances, sorted_distances, energies):
     return result
 
 class PMF:
-    def __init__(self, path):
-        '''Load potential of mean force data from file and prepare for interpolation'''
-        self.pmf_function = np.loadtxt(path)
-        self.sorted_distances = self.pmf_function[:, 0]
-        # Pre-extract energy columns for faster access
-        self.energy_columns = [self.pmf_function[:, i+1] for i in range(3)]
+    def __init__(self, sigma_a, sigma_b, epsilon_a, epsilon_b, charge_a, charge_b, dielectric):
+        '''Create table of FF energies for AB system'''
+        distances = np.arange(0.1, 20.0, 0.01)
+        self.energy_columns = {
+            'AA': self._calculate_energies(distances, sigma_a, epsilon_a, charge_a, charge_a, dielectric),
+            'BB': self._calculate_energies(distances, sigma_b, epsilon_b, charge_b, charge_b, dielectric),
+            'AB': self._calculate_energies(distances, sigma_a, epsilon_a, charge_a, charge_b, dielectric)
+        }
+        self.sorted_distances = distances
+        self.pmf_function = np.column_stack((distances, self.energy_columns['AA'], self.energy_columns['BB'], self.energy_columns['AB']))
+
+    def _calculate_energies(self, distances, sigma, epsilon, charge1, charge2, dielectric):
+        '''Calculate energies for given interaction type using Lennard-Jones and Coulomb potentials
+        
+        Units:
+        - distances: Ångströms
+        - sigma: Ångströms  
+        - epsilon: kcal/mol
+        - charges: elementary charges
+        - Output energy: kcal/mol
+        '''
+        sigma = np.asarray(sigma)
+        epsilon = np.asarray(epsilon)
+        charge1 = np.asarray(charge1)
+        charge2 = np.asarray(charge2)
+        dielectric = np.asarray(dielectric)
+
+        # Lennard-Jones potential (already in kcal/mol)
+        lj_energy = 4 * epsilon * ((sigma / distances)**12 - (sigma / distances)**6)
+
+        # Coulomb potential with unit conversion to kcal/mol
+        # ke = 332.0637 kcal⋅Å/(mol⋅e²) for elementary charges and Ångström distances
+        ke = 332.0637
+        coulomb_energy = (ke * charge1 * charge2) / (dielectric * distances)
+
+        return lj_energy + coulomb_energy
 
     def energies(self, type, distances):
         '''Calculate energies for given interaction type and array of distances using interpolation'''

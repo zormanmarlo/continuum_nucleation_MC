@@ -15,7 +15,8 @@ class System:
         self.kT = config.kT
 
         self.id = str(id).zfill(2)
-        self.pmf = PMF("potentials/"+config.ff_path)
+        param_list = [config.sigma_a, config.sigma_b, config.epsilon_a, config.epsilon_b, config.charge_a, config.charge_b, config.dielectric]
+        self.pmf = PMF(*param_list)
         self.seed = config.seed + id
         np.random.seed(self.seed)
         
@@ -190,7 +191,7 @@ class System:
             self.positions, self.types, particle_idx, 
             self.config.lower_energy_cutoff, self.config.energy_cutoff,
             self.box_length, self.pmf.sorted_distances,
-            self.pmf.energy_columns[0], self.pmf.energy_columns[1], self.pmf.energy_columns[2]
+            self.pmf.energy_columns['AA'], self.pmf.energy_columns['BB'], self.pmf.energy_columns['AB']
         )
     
     def calc_full_energy(self):

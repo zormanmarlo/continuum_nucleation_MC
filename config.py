@@ -20,8 +20,10 @@ class Config:
             'box_length', 'num_particles', 'equil_steps', 'prod_steps', 'output_interval',
             'internal_interval', 'seed', 'bias_type', 'avbmc_rate', 'nvt_rate',
             'translation_rate', 'swap_rate', 'max_displacement', 'upper_cutoff',
-            'lower_cutoff', 'clust_cutoff', 'ff_path', 'input_path', 'kT', 'ratio',
-            'input_file', 'lower_energy_cutoff', 'energy_cutoff', 'concentration'
+            'lower_cutoff', 'clust_cutoff', 'input_path', 'kT', 'ratio',
+            'input_file', 'lower_energy_cutoff', 'energy_cutoff', 'concentration',
+            'sigma_a', 'sigma_b', 'epsilon_a', 'epsilon_b',
+            'charge_a', 'charge_b', 'dielectric'
         ]
         for param in self.default_params:
             if param not in self.parameters:

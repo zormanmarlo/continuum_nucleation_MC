@@ -152,7 +152,8 @@ class OutInAVBMCMove(Move):
             self.system.positions[target_idx] = new_pos
             new_energy = self.system.calc_energy(target_idx)
             w = np.exp(-new_energy / self.system.kT)
-            if np.isnan(w):
+            if np.isnan(w) or np.isinf(w):
+                w = 0
                 wnew += 0
             else:
                 wnew += w
