@@ -15,7 +15,7 @@ class System:
         self.kT = config.kT
 
         self.id = str(id).zfill(2)
-        self.pmf = PMF("potentials/"+config.ff_path)
+        self.pmf = PMF()
         self.seed = config.seed + id
         np.random.seed(self.seed)
         
@@ -53,10 +53,11 @@ class System:
 
             if num_parts != self.num_particles:
                 raise ValueError(f"{filename} has {num_parts} particles, expected {self.num_particles}")
-            if len(part_types) != 2:
-                raise ValueError(f"{filename} must contain exactly two particle types, found {len(part_types)}: {part_types}")
+            if len(part_types) != 1:
+                raise ValueError(f"{filename} must contain exactly one particle type, found {len(part_types)}: {part_types}")
 
             part_types = list(part_types)
+	    # keeping this but it should be fine since we raise the ValueError
             assign_value = lambda atom: 0 if atom == part_types[0] else 1
 
             for line in data_lines:
@@ -179,7 +180,7 @@ class System:
             new_cluster = len(self.find_target_cluster())
             new_energy = self.calc_energy(particle_idx)
             delta_energy = new_energy - old_energy
-            delta_bias_energy = self.bias.denergy(old_cluster, new_cluster)
+            delta_bias_energy = self.bias.denergy(new_cluster, old_cluster)
 
         self.positions[particle_idx] = old_pos  # Reset position after calculation
         return delta_energy, delta_bias_energy
@@ -203,7 +204,7 @@ class System:
 
         # Set initial bias energy if applicable
         if self.bias is not None:
-            self.energy += self.bias.energy(len(self.target_clust_idx))
+            self.bias_energy = self.bias.energy(len(self.target_clust_idx))
         else:
             self.bias_energy = 0.0
     

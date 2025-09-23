@@ -146,12 +146,12 @@ def interpolate_energy_numba(distances, sorted_distances, energies):
     return result
 
 class PMF:
-    def __init__(self, path):
-        '''Load potential of mean force data from file and prepare for interpolation'''
-        self.pmf_function = np.loadtxt(path)
-        self.sorted_distances = self.pmf_function[:, 0]
-        # Pre-extract energy columns for faster access
-        self.energy_columns = [self.pmf_function[:, i+1] for i in range(3)]
+    def __init__(self):
+        '''Initialize custom LJ potential - matches parameters from Bin Chen publication'''
+        self.sorted_distances = np.linspace(0.1, 10, 1000)
+        # Create separate energy arrays for different interaction types
+        lj_potential = 4 * 0.8955223881 * ((1 / self.sorted_distances)**12 - (1 / self.sorted_distances)**6)
+        self.energy_columns = [lj_potential, lj_potential, lj_potential]  # 0-0, 1-1, 0-1 interactions
 
     def energies(self, type, distances):
         '''Calculate energies for given interaction type and array of distances using interpolation'''

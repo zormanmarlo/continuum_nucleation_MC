@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=100mM_100mer_switch
-#SBATCH --account=pfaendtner
+#SBATCH --job-name=10mM_nacl
+#SBATCH --account=cheme
 #SBATCH --partition=compute
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=20
-#SBATCH --time=130:00:00
-#SBATCH --mem=75gb
+#SBATCH --ntasks-per-node=10
+#SBATCH --time=100:00:00
+#SBATCH --mem=25gb
 # E-mail Notification, see man sbatch for options
 
 ## SBATCH --workdir=$SLURM_SUBMIT_DIR
@@ -19,7 +19,9 @@ echo "working directory = "$SLURM_SUBMIT_DIR
 
 #module load intel
 
-module load foster/python/miniconda/3.8
-python3 simulation.py -np 20 -jobname 100mM_100mer -config configs/100mM_nacl_config.txt
+module load gcc/13.2.0
+source /gscratch/cheme/mzorman/03_misc/miniconda3/etc/profile.d/conda.sh
+conda activate
+python simulation.py -np 10 -jobname ../driver_jobs/10mM_dang -config configs/10mM_unbiased.txt
 
 exit 0

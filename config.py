@@ -20,7 +20,7 @@ class Config:
             'box_length', 'num_particles', 'equil_steps', 'prod_steps', 'output_interval',
             'internal_interval', 'seed', 'bias_type', 'avbmc_rate', 'nvt_rate',
             'translation_rate', 'swap_rate', 'max_displacement', 'upper_cutoff',
-            'lower_cutoff', 'clust_cutoff', 'ff_path', 'input_path', 'kT', 'ratio',
+            'lower_cutoff', 'clust_cutoff',  'input_path', 'kT', 'ratio',
             'input_file', 'lower_energy_cutoff', 'energy_cutoff', 'concentration'
         ]
         for param in self.default_params:
@@ -64,9 +64,10 @@ class Config:
             self.bias = Bias(center=self.parameters['bias_center'], type='harmonic', force_constant=self.parameters['bias_k'])
         elif self.parameters['bias_type'] == 'linear':
             if 'bias_file' not in self.parameters:
-                logger.warning("Parameter 'bias_file' not set for linear bias. This is required.")
-                raise ValueError("Linear bias requires a bias file path")
-            self.bias = Bias(path=self.parameters['bias_file'], type='linear', max_size=self.parameters.get('max_target', 200))
+                logger.warning("Parameter 'bias_file' not set for linear bias. Setting bias to zero")
+                self.bias = Bias(type='linear', max_size=self.parameters.get('max_target', 200))
+            else:
+                self.bias = Bias(path=self.parameters['bias_file'], type='linear', max_size=self.parameters.get('max_target', 200))
         else:
             self.bias = None
     

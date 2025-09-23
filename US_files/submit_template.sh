@@ -22,6 +22,7 @@ echo "working directory = "$SLURM_SUBMIT_DIR
 module load gcc/13.2.0
 source /gscratch/cheme/mzorman/03_misc/miniconda3/etc/profile.d/conda.sh
 conda activate
-python simulation.py -np 5 -jobname CENTERmer -config configs/nacl_us/100mM_nacl_CENTERmer_large_random_JC.txt -path 100mM_nacl_US_large_random_JC
+cd ../
+python simulation.py -np 5 -jobname CENTERmer -config configs/nacl_us/100mM_nacl_CENTERmer_dang.txt -path ../driver_jobs/100mM_nacl_US_dang -multi
 
 exit 0
