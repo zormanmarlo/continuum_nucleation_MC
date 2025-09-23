@@ -166,7 +166,7 @@ class PMF:
         return self.pmf_function[index, type+1]
     
 class Bias:
-    def __init__(self, max_size=200, path=None, center=0, type="harmonic", force_constant=0.0):
+    def __init__(self, max_size=30, path=None, center=0, type="harmonic", force_constant=0.0):
         '''Initialize bias potential for umbrella sampling with harmonic or linear bias types'''
         self.max_size = max_size
         self.type = type

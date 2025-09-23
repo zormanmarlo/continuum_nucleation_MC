@@ -65,11 +65,15 @@ class Config:
         elif self.parameters['bias_type'] == 'linear':
             if 'bias_file' not in self.parameters:
                 logger.warning("Parameter 'bias_file' not set for linear bias. Setting bias to zero")
-                self.bias = Bias(type='linear', max_size=self.parameters.get('max_target', 200))
+                self.bias = Bias(type='linear', max_size=self.parameters.get('max_target', 30))
             else:
-                self.bias = Bias(path=self.parameters['bias_file'], type='linear', max_size=self.parameters.get('max_target', 200))
+                self.bias = Bias(path=self.parameters['bias_file'], type='linear', max_size=self.parameters.get('max_target', 30))
         else:
             self.bias = None
+        
+        # set max size, needed for LJ simulations, the linear bias here will be zero
+        print("setting bias")
+        self.bias = Bias(type='linear', max_size=self.parameters.get('max_target', 30))
     
     def _missing_parameters(self):
         '''Set default values for missing parameters and validate system size consistency'''
@@ -87,7 +91,7 @@ class Config:
 
         # if no lower_cutoff is provided, default to 1.5
         if 'lower_energy_cutoff' not in self.parameters:
-            self.parameters['lower_energy_cutoff'] = 1.5
+            self.parameters['lower_energy_cutoff'] = 0.0
 
         # if no energy_cutoff is provided, default to 20.0
         if 'energy_cutoff' not in self.parameters:

@@ -133,7 +133,7 @@ class OutInAVBMCMove(Move):
         self.system.target_clust_idx = self.system.find_target_cluster()
 
         # Calculate wnew for the new configuration
-        nrb = 32  # Number of Rosenbluth trials
+        nrb = 1  # Number of Rosenbluth trials
         wnew = 0
         rosenbluth_weights = []
         for _ in range(nrb):            
@@ -191,8 +191,9 @@ class OutInAVBMCMove(Move):
             self.system.positions[target_idx_out] = old_pos_out
             
         if self.system.bias is not None:
-            self.system.tmp_target_clust_idx = self.system.target_clust_idx.copy()
-            self.system.target_clust_idx = self.system.find_target_cluster()
+            # self.system.tmp_target_clust_idx = self.system.target_clust_idx.copy()
+            self.system.tmp_target_clust_idx = self.system.find_target_cluster(target_idx=target_idx)
+            self.system.target_clust_idx = self.system.find_target_cluster(target_idx=target_idx)
             bias_energy = self.system.bias.denergy(len(self.system.target_clust_idx), len(self.system.tmp_target_clust_idx))
         else:
             bias_energy = 0.0

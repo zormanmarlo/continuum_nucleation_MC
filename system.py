@@ -37,8 +37,8 @@ class System:
 
         # initialize bias as specified in config file
         self.bias = None
-        if config.bias_type is not None:
-            self.bias = config.bias
+        # if config.bias_type is not None:
+        self.bias = config.bias
 
     def init_positions(self, input_path=None, multi=False):
         '''Initialize particle positions either from input file or randomly, ensuring proper ratios and minimum separations'''
