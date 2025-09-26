@@ -1,7 +1,7 @@
 # CONCENTRATION
 ratio = 1:0
-box_length = 33.94
-num_particles = 864
+box_length = 130
+num_particles = 512
 
 # SIMULATION SETTINGS
 equil_steps = 0
@@ -10,21 +10,29 @@ output_interval = 1000
 internal_interval = 1000
 seed = 11
 
+# LJ SETTINGS
+# run at 80.7 Kelvin
+kT = 0.16
+# cutoff is 6.75*sigma 
+energy_cutoff = 22.98375
+epsilon = 0.2385205545
+sigma = 3.405
+
 # BIAS SETTINGS
 bias_type = none
-max_target = 30
+max_target = 200
 
 # MOVE RATES
-avbmc_rate = 0.25
+avbmc_rate = 1.0
 nvt_rate = 0.0
-translation_rate = 0.75
+translation_rate = 0.0
 swap_rate = 0.0
-max_displacement = 4.2
+max_displacement = 2
 
 # CLUSTER DEFINITION
-upper_cutoff = 1.5
-lower_cutoff = 0.25
-clust_cutoff = 1.5
+upper_cutoff = 4.0
+lower_cutoff = 2.5
+clust_cutoff = 4.0
 
 # INPUT FILES
 input_path = none

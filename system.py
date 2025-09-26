@@ -15,7 +15,7 @@ class System:
         self.kT = config.kT
 
         self.id = str(id).zfill(2)
-        self.pmf = PMF()
+        self.pmf = PMF(config.epsilon, config.sigma, config.energy_cutoff)
         self.seed = config.seed + id
         np.random.seed(self.seed)
         
@@ -36,8 +36,7 @@ class System:
             self.move_names.append(move_name)
 
         # initialize bias as specified in config file
-        self.bias = None
-        # if config.bias_type is not None:
+        # self.bias = None
         self.bias = config.bias
 
     def init_positions(self, input_path=None, multi=False):

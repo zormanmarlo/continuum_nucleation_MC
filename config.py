@@ -21,7 +21,8 @@ class Config:
             'internal_interval', 'seed', 'bias_type', 'avbmc_rate', 'nvt_rate',
             'translation_rate', 'swap_rate', 'max_displacement', 'upper_cutoff',
             'lower_cutoff', 'clust_cutoff',  'input_path', 'kT', 'ratio',
-            'input_file', 'lower_energy_cutoff', 'energy_cutoff', 'concentration'
+            'input_file', 'lower_energy_cutoff', 'energy_cutoff', 'concentration',
+            'epsilon', 'sigma'
         ]
         for param in self.default_params:
             if param not in self.parameters:
@@ -51,6 +52,7 @@ class Config:
 
     def _set_bias(self):
         '''Initialize bias potential based on bias_type parameter'''
+        print(self.parameters["bias_type"])
         if 'bias_type' not in self.parameters:
             self.parameters['bias_type'] = None
         
@@ -61,7 +63,7 @@ class Config:
             if 'bias_k' not in self.parameters:
                 logger.warning("Parameter 'bias_k' not set for harmonic bias. Defaulting to 1.0.")
                 self.parameters['bias_k'] = 1.0
-            self.bias = Bias(center=self.parameters['bias_center'], type='harmonic', force_constant=self.parameters['bias_k'])
+            self.bias = Bias(center=self.parameters['bias_center'], type='harmonic', force_constant=self.parameters['bias_k'], max_size=self.parameters.get('max_target', 30))
         elif self.parameters['bias_type'] == 'linear':
             if 'bias_file' not in self.parameters:
                 logger.warning("Parameter 'bias_file' not set for linear bias. Setting bias to zero")
@@ -69,12 +71,8 @@ class Config:
             else:
                 self.bias = Bias(path=self.parameters['bias_file'], type='linear', max_size=self.parameters.get('max_target', 30))
         else:
-            self.bias = None
-        
-        # set max size, needed for LJ simulations, the linear bias here will be zero
-        print("setting bias")
-        self.bias = Bias(type='linear', max_size=self.parameters.get('max_target', 30))
-    
+            self.bias = Bias(type='linear', max_size=self.parameters.get('max_target', 30))
+
     def _missing_parameters(self):
         '''Set default values for missing parameters and validate system size consistency'''
         # if no kT is provided, set it to 0.592
@@ -151,7 +149,10 @@ class Config:
         # Calculate based on ion ratio
         volume_L = (box_length * 1e-10) ** 3 * 1000  # Convert Å³ to L
         # For NaCl, the number of formula units is determined by the limiting ion
-        formula_units = num_particles // self.total_ratio * min(self.ratio_type1, self.ratio_type2)
+        if min(self.ratio_type1, self.ratio_type2) == 0:
+            formula_units = num_particles
+        else:
+            formula_units = num_particles // self.total_ratio * min(self.ratio_type1, self.ratio_type2)
         moles_nacl = formula_units / 6.022e23
         return moles_nacl / volume_L
     

@@ -1,0 +1,41 @@
+#
+CONCENTRATION
+ratio = 1:0
+box_length = 130
+num_particles = 512
+
+# SIMULATION SETTINGS
+equil_steps = 0
+prod_steps = 1000000
+output_interval = 1000
+internal_interval = 1000
+seed = 11
+
+# LJ SETTINGS
+# run at 80.7 Kelvin
+kT = 0.159248 
+# cutoff is 6.75*sigma 
+energy_cutoff = 22.98375
+epsilon = 0.2385205545
+sigma = 3.405
+
+# BIAS SETTINGS
+bias_type = harmonic
+bias_center = CENTER
+bias_k = 0.5
+max_target = 200
+
+# MOVE RATES
+avbmc_rate = 0.25
+nvt_rate = 0.0
+translation_rate = 0.75
+swap_rate = 0.0
+max_displacement = 2
+
+# CLUSTER DEFINITION
+upper_cutoff = 6.0
+lower_cutoff = 25
+clust_cutoff = 6.0
+
+# INPUT FILES
+input_path = inputs/S6_512mono/CENTERmer.xyz

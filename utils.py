@@ -146,12 +146,11 @@ def interpolate_energy_numba(distances, sorted_distances, energies):
     return result
 
 class PMF:
-    def __init__(self):
-        '''Initialize custom LJ potential - matches parameters from Bin Chen publication'''
-        self.sorted_distances = np.linspace(0.1, 10, 1000)
-        # Create separate energy arrays for different interaction types
-        lj_potential = 4 * 0.8955223881 * ((1 / self.sorted_distances)**12 - (1 / self.sorted_distances)**6)
-        self.energy_columns = [lj_potential, lj_potential, lj_potential]  # 0-0, 1-1, 0-1 interactions
+    def __init__(self, epsilon=0.2385205545, sigma=3.405, cutoff=20.0):
+        '''Initialize custom LJ potential - matches parameters from tiwary publication'''
+        self.sorted_distances = np.linspace(0.1, cutoff, 1000)
+        lj_potential = 4 * epsilon * ((sigma / self.sorted_distances)**12 - (sigma / self.sorted_distances)**6)
+        self.energy_columns = [lj_potential, lj_potential, lj_potential]  # todo: make this just a single column
 
     def energies(self, type, distances):
         '''Calculate energies for given interaction type and array of distances using interpolation'''
@@ -166,7 +165,7 @@ class PMF:
         return self.pmf_function[index, type+1]
     
 class Bias:
-    def __init__(self, max_size=30, path=None, center=0, type="harmonic", force_constant=0.0):
+    def __init__(self, max_size=200, path=None, center=0, type="harmonic", force_constant=0.0):
         '''Initialize bias potential for umbrella sampling with harmonic or linear bias types'''
         self.max_size = max_size
         self.type = type
