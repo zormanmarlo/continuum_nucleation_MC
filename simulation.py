@@ -68,7 +68,7 @@ class Simulation:
         # Write collective variable output (for umbrella sampling)
         if hasattr(self, 'colvar_file'):
             with open(self.colvar_file, 'a') as f:
-                f.write(f'{step} {len(target_clust)} {self.system.bias_energy}\n')
+                f.write(f'{step} {len(target_clust)} {self.system.bias.energy(len(target_clust))}\n')
         
         # Write energy output
         with open(self.energy_file, 'a') as f:

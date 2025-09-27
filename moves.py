@@ -285,7 +285,7 @@ class NVTOutInMove(Move):
         self.system.target_clust_idx = self.system.find_target_cluster()
 
         # Calculate wnew for the new configuration
-        nrb = 32  # Number of Rosenbluth trials
+        nrb = 1  # Number of Rosenbluth trials
         wnew = 0
         rosenbluth_weights = []
         for _ in range(nrb):
