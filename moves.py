@@ -100,7 +100,9 @@ class InOutAVBMCMove(Move):
             new_pos = np.round(((np.random.rand(3) - 0.5) * self.system.box_length * 2), 3) % self.system.box_length
 
         delta_energy, bias_energy = self.system.calc_energy_delta(target_idx, new_pos, old_pos)
-        avbmc_energy = np.exp(np.clip((-(delta_energy+bias_energy)/self.system.kT)*self.Vout/self.Vin*(Nin)/(self.system.num_particles-Nin+1), -500, 500))
+        # avbmc_energy = np.exp(np.clip((-(delta_energy+bias_energy)/self.system.kT)*self.Vout/self.Vin*(Nin)/(self.system.num_particles-Nin+1), -500, 500))
+        avbmc_energy = np.exp(np.clip(-(delta_energy+bias_energy)/self.system.kT,
+                                -500, 500)) * self.Vout/self.Vin * (Nin)/(self.system.num_particles-Nin+1)
         acc_prob = min(1, avbmc_energy)
         if np.random.rand() >= acc_prob:
             # Reject move - position is already back at old_pos from calc_energy_delta

@@ -20,12 +20,12 @@ sigma = 3.405
 
 # BIAS SETTINGS
 bias_type = none
-max_target = 200
+max_target = 400
 
 # MOVE RATES
-avbmc_rate = 0.1
-nvt_rate = 0.1
-translation_rate = 0.8
+avbmc_rate = 0.3
+nvt_rate = 0.0
+translation_rate = 0.7
 swap_rate = 0.0
 max_displacement = 10
 
