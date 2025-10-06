@@ -135,12 +135,12 @@ class OutInAVBMCMove(Move):
         self.system.target_clust_idx = self.system.find_target_cluster()
 
         # Calculate wnew for the new configuration
-        nrb = 1  # Number of Rosenbluth trials
+        nrb = self.system.config.parameters['rosenbluth_trials']
         wnew = 0
         rosenbluth_weights = []
         for _ in range(nrb):            
-            r = np.cbrt(np.random.rand() * (self.system.clust_cutoff**3 - self.system.config.lower_cutoff**3) + self.system.config.lower_cutoff**3)
             # Uniform sampling on the sphere for direction
+            r = np.cbrt(np.random.rand() * (self.system.clust_cutoff**3 - self.system.config.lower_cutoff**3) + self.system.config.lower_cutoff**3)
             phi = 2 * np.pi * np.random.rand()
             cos_theta = 2 * np.random.rand() - 1
             sin_theta = np.sqrt(1 - cos_theta**2)
@@ -287,15 +287,27 @@ class NVTOutInMove(Move):
         self.system.target_clust_idx = self.system.find_target_cluster()
 
         # Calculate wnew for the new configuration
-        nrb = 1  # Number of Rosenbluth trials
+        nrb = self.system.config.parameters['rosenbluth_trials']  # Number of Rosenbluth trials
         wnew = 0
         rosenbluth_weights = []
         for _ in range(nrb):
-            displacement = np.round(((np.random.rand(3) - 0.5) * self.system.config.upper_cutoff * 2), 3)
-            while ((sum(displacement**2) > self.system.config.upper_cutoff**2) or (sum(displacement**2) < self.system.config.lower_cutoff**2)):
-                displacement = np.round(((np.random.rand(3) - 0.5) * self.system.config.upper_cutoff * 2), 3)
+            # displacement = np.round(((np.random.rand(3) - 0.5) * self.system.config.upper_cutoff * 2), 3)
+            # while ((sum(displacement**2) > self.system.config.upper_cutoff**2) or (sum(displacement**2) < self.system.config.lower_cutoff**2)):
+            #     displacement = np.round(((np.random.rand(3) - 0.5) * self.system.config.upper_cutoff * 2), 3)
             
-            new_pos = (self.system.positions[anchor_idx] + displacement) % (self.system.box_length)
+            # new_pos = (self.system.positions[anchor_idx] + displacement) % (self.system.box_length)
+            # Uniform sampling on the sphere for direction
+            r = np.cbrt(np.random.rand() * (self.system.clust_cutoff**3 - self.system.config.lower_cutoff**3) + self.system.config.lower_cutoff**3)
+            phi = 2 * np.pi * np.random.rand()
+            cos_theta = 2 * np.random.rand() - 1
+            sin_theta = np.sqrt(1 - cos_theta**2)
+            
+            # Convert to Cartesian coordinates
+            x = r * sin_theta * np.cos(phi)
+            y = r * sin_theta * np.sin(phi)
+            z = r * cos_theta
+            new_pos = (self.system.positions[anchor_idx] + np.array([x, y, z])) % (self.system.box_length)
+            
             self.system.positions[target_idx] = new_pos
             new_energy = self.system.calc_energy(target_idx)
             w = np.exp(-new_energy / self.system.kT)

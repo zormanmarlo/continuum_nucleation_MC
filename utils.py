@@ -165,11 +165,12 @@ class PMF:
         return self.pmf_function[index, type+1]
     
 class Bias:
-    def __init__(self, max_size=200, path=None, center=0, type="harmonic", force_constant=0.0):
+    def __init__(self, max_size=200, path=None, center=0, type="harmonic", force_constant=0.0, kT=0.596):
         '''Initialize bias potential for umbrella sampling with harmonic or linear bias types'''
         self.max_size = max_size
         self.type = type
         self.center = center
+        self.kT = kT
         if type == "linear":
             if path is None:
                 self.bias = np.zeros(max_size)
@@ -185,7 +186,7 @@ class Bias:
         '''Calculate change in bias energy between old and new cluster sizes'''
         # Hard coding massive bias for moves that lead to clusters larger than max_size
         # Might need to move this to acceptance criteria in order to avoid overflow errors
-        if new >= self.max_size:
+        if new > self.max_size:
             bias = 100000
         else:
             if self.type == "harmonic":
@@ -196,7 +197,7 @@ class Bias:
     
     def energy(self, size):
         '''Calculate bias energy for given cluster size'''
-        if size >= self.max_size:
+        if size > self.max_size:
             bias = 100000
         else:
             if self.type == "harmonic":
@@ -215,9 +216,9 @@ class Bias:
         
         for i in range(len(distribution)):
             if distribution[i] > 0:
-                new_potential[i] = self.bias[i]  + 0.6*np.log(distribution[i] / n_star)
+                new_potential[i] = self.bias[i]  + self.kT*np.log(distribution[i] / n_star)
             else:
-                new_potential[i] = self.bias[pivot_bin] + 0.6*np.log(n_star_m)
+                new_potential[i] = self.bias[pivot_bin] + self.kT*np.log(n_star_m)
         
         # Re-shift potentials to ensure the reference state is 0kBT.
         new_potential -= new_potential[1]

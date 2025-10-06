@@ -68,7 +68,7 @@ class Simulation:
         # Write collective variable output (for umbrella sampling)
         if hasattr(self, 'colvar_file'):
             with open(self.colvar_file, 'a') as f:
-                f.write(f'{step} {len(target_clust)} {self.system.bias.energy(len(target_clust))}\n')
+                f.write(f'{step} {len(target_clust)} {self.system.bias_energy}\n')
         
         # Write energy output
         with open(self.energy_file, 'a') as f:
@@ -106,7 +106,7 @@ class Simulation:
 def equal_hist(dist):
     '''Check if histogram distribution is sufficiently flat for adaptive umbrella sampling convergence'''
     max_diff = np.max(np.abs(np.diff(dist)))
-    if max_diff <= 0.05 * np.mean(dist):
+    if max_diff <= 0.10 * np.mean(dist):
         return True
     else:
         return False
@@ -195,7 +195,7 @@ if __name__ == "__main__":
                 sim.system.target_sizes = []
                 sim.target_sizes = []
                 if all(dist > 0):
-                    sim.system.config.parameters.prod_steps = sim.system.config.parameters.prod_steps + orig_prod_steps*0.2
+                    sim.system.config.parameters["prod_steps"] = sim.system.config.parameters["prod_steps"] + int(orig_prod_steps*0.2)
             potential = simulations[0].system.bias.bias
             with open(f"{args.jobname}/potentials.out", "a") as file:
                 file.write(f"{potential}\n")
@@ -209,11 +209,13 @@ if __name__ == "__main__":
                 potential = simulations[0].system.bias.bias
 
                 # Save final system
-                sizes = np.concatenate([sim.target_sizes[-2 * sim.parameters["num_steps"] // sim.config.parameters["output_interval"]:] for sim in simulations])
+                sizes = np.concatenate([sim.target_sizes[-2 * sim.config.parameters["num_steps"] // sim.config.parameters["output_interval"]:] for sim in simulations])
                 dist = np.histogram(sizes, bins=np.arange(1, simulations[0].config.parameters["max_target"]+2))[0]
                 with open(f"{args.jobname}/histograms.out", "a") as file:
+                    file.write("FINAL HISTOGRAM:\n")
                     file.write(f"{dist}\n")
                 with open(f"{args.jobname}/potentials.out", "a") as file:
+                    file.write("FINAL POTENTIAL:\n")
                     file.write(f"{potential[-1]}\n")
 
                 pkl.dump(simulations, open(f"{args.jobname}/system.pkl", "wb"))

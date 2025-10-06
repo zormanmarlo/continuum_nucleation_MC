@@ -36,7 +36,6 @@ class System:
             self.move_names.append(move_name)
 
         # initialize bias as specified in config file
-        # self.bias = None
         self.bias = config.bias
 
     def init_positions(self, input_path=None, multi=False):
@@ -102,6 +101,7 @@ class System:
                         self.types.append(0)
                         break
 
+            # NOT NEEDED IN LJ BUT HERE FOR REFERENCE
             # populate second ion type
             for _ in range(n_type2):
                 tries = 0
