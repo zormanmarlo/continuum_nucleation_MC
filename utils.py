@@ -176,6 +176,8 @@ class Bias:
                 self.bias = np.zeros(max_size)
             else:
                 self.bias = np.loadtxt(path)
+                if len(self.bias) < max_size:
+                    self.bias = np.pad(self.bias, (0, max_size - len(self.bias)), 'edge')
         elif type == "harmonic":
             self.center = center
             self.force_constant = force_constant

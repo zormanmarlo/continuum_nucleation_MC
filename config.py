@@ -52,7 +52,6 @@ class Config:
 
     def _set_bias(self):
         '''Initialize bias potential based on bias_type parameter'''
-        print(self.parameters["bias_type"])
         if 'bias_type' not in self.parameters:
             self.parameters['bias_type'] = None
         
@@ -67,11 +66,11 @@ class Config:
         elif self.parameters['bias_type'] == 'linear':
             if 'bias_file' not in self.parameters:
                 logger.warning("Parameter 'bias_file' not set for linear bias. Setting bias to zero")
-                self.bias = Bias(type='linear', max_size=self.parameters.get('max_target', 30))
+                self.bias = Bias(type='linear', max_size=self.parameters.get('max_target', 30), kT=self.parameters['kT'])
             else:
-                self.bias = Bias(path=self.parameters['bias_file'], type='linear', max_size=self.parameters.get('max_target', 30))
+                self.bias = Bias(path=self.parameters['bias_file'], type='linear', max_size=self.parameters.get('max_target', 30), kT=self.parameters['kT'])
         else:
-            self.bias = Bias(type='linear', max_size=self.parameters.get('max_target', 30))
+            self.bias = Bias(type='linear', max_size=self.parameters.get('max_target', 30), kT=self.parameters['kT'])
 
     def _missing_parameters(self):
         '''Set default values for missing parameters and validate system size consistency'''
