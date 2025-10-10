@@ -37,12 +37,19 @@ class Simulation:
         self.traj_file = f'{self.output_dir}/traj-{self.ID}.xyz'
         self.clusters_file = f'{self.output_dir}/clusters-{self.ID}.out'
         self.target_cluster_file = f'{self.output_dir}/target_cluster-{self.ID}.out'
+
+        if self.config.parameters.get('output_detailed_balance', True):
+            self.detailed_balance_file = f'{self.output_dir}/detailed_balance-{self.ID}.log'
+            with open(self.detailed_balance_file, 'a') as f:
+                f.write('# step ' + ' '.join(name for name in self.system.move_names) + '\n')
+
         if self.system.bias is not None and self.system.bias.type == 'harmonic':
             self.colvar_file = f'{self.output_dir}/colvar_{self.system.bias.center}.out'
         
         with open(self.stats_file, 'a') as f:
             move_headers = ' '.join(f'{name}_acceptance' for name in self.system.move_names)
             f.write(f'# step {move_headers}\n')
+        
         
     def clean_dir(self):
         '''Remove all existing output files to ensure clean simulation start'''
@@ -55,6 +62,8 @@ class Simulation:
         ]
         if hasattr(self, 'colvar_file'):
             files_to_clean.append(self.colvar_file)
+        if hasattr(self, 'detailed_balance_file'):
+            files_to_clean.append(self.detailed_balance_file)
             
         for file_path in files_to_clean:
             if os.path.exists(file_path):
@@ -101,7 +110,16 @@ class Simulation:
         # Reset stats for active moves only
         for move in self.system.active_moves:
             move.reset_stats()
-        
+
+        if hasattr(self, 'detailed_balance_file'):
+            with open(self.detailed_balance_file, 'a') as f:
+                db_data = self.system.detailed_balance_data
+                db_str = ' '.join(
+                    # f"{db_data[name]['fwd']} {db_data[name]['rvr']} "
+                    f"{db_data[name]['fwd'] / db_data[name]['rvr'] if db_data[name]['rvr'] != 0 else 'inf'}"
+                    for name in self.system.move_names
+                )
+                f.write(f'{step} {db_str}\n')
 
 def equal_hist(dist):
     '''Check if histogram distribution is sufficiently flat for adaptive umbrella sampling convergence'''

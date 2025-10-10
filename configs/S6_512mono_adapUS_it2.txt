@@ -5,23 +5,25 @@ num_particles = 512
 
 # SIMULATION SETTINGS
 equil_steps = 0
-prod_steps = 1000000
-output_interval = 10000
+prod_steps = 200000
+output_interval = 100
 internal_interval = 1000
 seed = 11
-output_detailed_balance = True
+output_detailed_balance = False
 
 # LJ SETTINGS
 # run at 80.7 Kelvin
-kT = 0.16
+kT = 0.159248 
 # cutoff is 6.75*sigma 
 energy_cutoff = 22.98375
 epsilon = 0.2385205545
 sigma = 3.405
 
 # BIAS SETTINGS
-bias_type = none
-max_target = 50
+bias_type = linear
+max_target = 10
+bias_file = bias/adapUS_1.txt
+# THIS IS ONLY AN EXAMPLE
 
 # MOVE RATES
 avbmc_rate = 0.2
@@ -29,7 +31,7 @@ nvt_rate = 0.1
 translation_rate = 0.7
 swap_rate = 0.0
 max_displacement = 10
-rosenbluth_trials = 1
+rosenbluth_trials = 32
 
 # CLUSTER DEFINITION
 upper_cutoff = 5.1

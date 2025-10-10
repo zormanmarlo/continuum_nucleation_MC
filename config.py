@@ -22,7 +22,7 @@ class Config:
             'translation_rate', 'swap_rate', 'max_displacement', 'upper_cutoff',
             'lower_cutoff', 'clust_cutoff',  'input_path', 'kT', 'ratio',
             'input_file', 'lower_energy_cutoff', 'energy_cutoff', 'concentration',
-            'epsilon', 'sigma', 'rosenbluth_trials'
+            'epsilon', 'sigma', 'rosenbluth_trials', 'output_detailed_balance'
         ]
         for param in self.default_params:
             if param not in self.parameters:
@@ -97,6 +97,10 @@ class Config:
         # if no rosenbluth_trials is provided, default to 10
         if 'rosenbluth_trials' not in self.parameters:
             self.parameters['rosenbluth_trials'] = 10
+
+        # If no output_detailed_balance is provided, default to False
+        if 'output_detailed_balance' not in self.parameters:
+            self.parameters['output_detailed_balance'] = False
         
         # Parse the ratio
         self._parse_ratio()

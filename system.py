@@ -30,6 +30,8 @@ class System:
         self.active_moves = []
         self.move_names = []
         self.move_probabilities = config.move_probabilities
+        if self.config.output_detailed_balance:
+            self.detailed_balance_data = {name: {'fwd': 0, 'rvr': 0} for name, _, _ in config.active_moves}
         for move_name, rate, move_class in config.active_moves:
             move_instance = move_class(self)
             self.active_moves.append(move_instance)
@@ -182,7 +184,7 @@ class System:
             delta_bias_energy = self.bias.denergy(new_cluster, old_cluster)
 
         self.positions[particle_idx] = old_pos  # Reset position after calculation
-        return delta_energy, delta_bias_energy
+        return delta_energy, delta_bias_energy, new_energy, old_energy
 
     def calc_energy(self, particle_idx):
         '''Calculate total energy of a particle with all other particles using tabulated PMF'''

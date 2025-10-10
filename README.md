@@ -1,9 +1,8 @@
 # Monte Carlo Model for Simulation of Ion Speciation
 
 ## Overview
-A Monte Carlo code that simulates speciation and nucleation of ions in a continuous coordinate space. Ions are represented as spherical particles. Interactions are calculated based on a user-supplied set of tabulated potentials, which should be placed in the potentials/ directory.
+A Monte Carlo code that simulates speciation and nucleation of LJ particles in continous space. 
 
-Note that this framework begins to fail at high concentrations/large cluster sizes, as the singular set of potentials is likely to inadequately represent particle interactions in denser environments. 
  
 ## Files and Classes
 
@@ -13,8 +12,7 @@ Note that this framework begins to fail at high concentrations/large cluster siz
 
 **utils.py**
 - `PMF`: Potential of mean force class for tabulated interactions
-  - Loads and interpolates energy data from files
-  - Supports different interaction types (ion-ion, cation-anion)
+  - Generates LJ potential from parameters in config file
 - `Bias`: Umbrella sampling bias potential implementation
   - Supports harmonic and linear bias types
   - Handles adaptive bias updates for enhanced sampling
@@ -25,28 +23,17 @@ Note that this framework begins to fail at high concentrations/large cluster siz
 - `TranslationMove`: Random particle displacement within spherical constraint
 - `SwapMove`: Random particle repositioning anywhere in box
 - `InOutAVBMCMove`/`OutInAVBMCMove`: Aggregation-Volume-Bias Monte Carlo moves
-- `NVTInOutMove`/`NVTOutInMove`: Nucleation moves with Rosenbluth sampling
+- `NVTInOutMove`/`NVTOutInMove`: Nucleation moves
 
-## Simple example
+## adapUS example
 
-Run a basic NaCl nucleation simulation:
+See **configs/S6_512mono_adapUS.txt** for example config file to use for adapUS. After each iteration, the simulation compiles target cluster samples for all markov chains (these are output at the output interval set in the configuration file) and uses this data to update bias. You may need to play around with both length and output intervals in order to improve convergence. The maximum target size is set in the configuration with the max_target variable. Convergence is defined as all bins being within 10% of the average bin count. For each iteration in which there are no empty bins but we have not converged, the simulation is extended by 20%.
+
+In general, the adapUS runs are able to find a reasonable bias within a few iterations of all the bins being filled. After this point, I recommend taking that bias and using it as the input for a new adapUS run with longer iterations and a larger output interval. Pl
+
+The command to specify that a simulation should use adaptive US:
 
 ```bash
-# Run a short test simulation (single processor)
-python simulation.py -config configs/test_config.txt -jobname test_run
-
-# Run with multiple processors for better statistics
-python simulation.py -np 4 -config configs/test_config.txt -jobname parallel_test
-
-# Run with custom output directory
-python simulation.py -config configs/test_config.txt -jobname my_sim -path ./results
+# Run adaptive US simulation with 10 markov chains
+python simulation.py -config configs/S6_512monoa_dapUS.txt -jobname S6_512mono_adapUS -np 10 -adapUS
 ```
-
-**Output Files Generated:**
-- `E-XX.log`: Energy vs time trajectories
-- `traj-XX.xyz`: Particle coordinates
-- `clusters-XX.out`: Cluster size distributions over time
-- `target_cluster-XX.out`: Size of cluster around particle 0
-- `stats-XX.log`: Monte Carlo move acceptance rates
-
-#### SEE US_FILES FOR EXAMPLES ON HOW TO PERFORM UMBRELLA SAMPLING AND ADAPTIVE UMBRELLA SAMPLING

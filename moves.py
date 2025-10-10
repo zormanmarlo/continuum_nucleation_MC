@@ -40,8 +40,20 @@ class TranslationMove(Move):
         old_pos = self.system.positions[particle_idx].copy()
         new_pos = (old_pos + displacement) % (self.system.box_length)
 
-        delta_energy, bias_energy = self.system.calc_energy_delta(particle_idx, new_pos, old_pos)
+        delta_energy, bias_energy, new_energy, old_energy = self.system.calc_energy_delta(particle_idx, new_pos, old_pos)
         acc_prob = min(1, np.exp(np.clip((-(delta_energy+bias_energy)/self.system.kT), -500, 500)))
+        move_rand = np.random.rand()
+
+        if self.system.config.parameters['output_detailed_balance']:
+            prob_new = np.exp(-new_energy / self.system.kT)
+            prob_old = np.exp(-old_energy / self.system.kT)
+            acc_new = min(1, np.exp(np.clip((-(delta_energy)/self.system.kT), -500, 500)))
+            acc_old = min(1, np.exp(np.clip(((delta_energy)/self.system.kT), -500, 500)))
+            acc_new = 1 if acc_new >= move_rand else 0
+            acc_old = 1 if acc_old >= np.random.rand() else 0
+            self.system.detailed_balance_data['translation']['fwd'] += (prob_old * acc_new)
+            self.system.detailed_balance_data['translation']['rvr'] += (prob_new * acc_old) 
+
         if np.random.rand() >= acc_prob:
             # Reject move - position is already back at old_pos from calc_energy_delta
             self.rejections += 1
@@ -64,9 +76,11 @@ class SwapMove(Move):
         old_pos = self.system.positions[particle_idx].copy()
         new_pos = np.round(((np.random.rand(3) - 0.5) * self.system.box_length * 2), 3) % self.system.box_length
 
-        delta_energy, bias_energy = self.system.calc_energy_delta(particle_idx, new_pos, old_pos)
+        delta_energy, bias_energy, _, _ = self.system.calc_energy_delta(particle_idx, new_pos, old_pos)
         
         acc_prob = min(1, np.exp(np.clip((-(delta_energy+bias_energy)/self.system.kT), -500, 500)))
+
+        ## TODO: Detailed balance for swap move (we generally dont use this right now)
         if np.random.rand() >= acc_prob:
             # Reject move - position is already back at old_pos from calc_energy_delta
             self.rejections += 1
@@ -82,7 +96,7 @@ class InOutAVBMCMove(Move):
         '''Initialize AVBMC in-out move with volume calculations for bias correction'''
         super().__init__(system)
         self.Vin = 4.0/3.0 * np.pi * (self.system.clust_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_cutoff**3)
-        self.Vout = self.system.box_length**3
+        self.Vout = self.system.box_length**3 # subtract Vin for accuracy? seems neglible for large boxes
 
     def attempt_move(self, anchor_idx):
         '''Attempt AVBMC move to remove particle from cluster to bulk solution'''
@@ -99,12 +113,26 @@ class InOutAVBMCMove(Move):
         while self.system.calc_dist(old_pos, new_pos) <= self.system.config.upper_cutoff:
             new_pos = np.round(((np.random.rand(3) - 0.5) * self.system.box_length * 2), 3) % self.system.box_length
 
-        delta_energy, bias_energy = self.system.calc_energy_delta(target_idx, new_pos, old_pos)
+        delta_energy, bias_energy, new_energy, old_energy = self.system.calc_energy_delta(target_idx, new_pos, old_pos)
         # avbmc_energy = np.exp(np.clip((-(delta_energy+bias_energy)/self.system.kT)*self.Vout/self.Vin*(Nin)/(self.system.num_particles-Nin+1), -500, 500))
         avbmc_energy = np.exp(np.clip(-(delta_energy+bias_energy)/self.system.kT,
                                 -500, 500)) * self.Vout/self.Vin * (Nin)/(self.system.num_particles-Nin+1)
         acc_prob = min(1, avbmc_energy)
-        if np.random.rand() >= acc_prob:
+        move_rand = np.random.rand()
+
+        if self.system.config.parameters['output_detailed_balance']:
+            prob_old = np.exp(-old_energy / self.system.kT)
+            prob_new = np.exp(-new_energy / self.system.kT)
+            acc_inout = min(1, np.exp(np.clip(-(delta_energy)/self.system.kT, -500, 500)) * self.Vout/self.Vin * Nin/(self.system.num_particles-Nin+1))
+            acc_outin =  min(1, np.exp(np.clip((delta_energy)/self.system.kT, -500, 500)) * self.Vin/self.Vout * (self.system.num_particles-(Nin-1))/(Nin-1+1))
+            acc_inout = 1 if acc_inout >= move_rand else 0
+            acc_outin = 1 if acc_outin >= np.random.rand() else 0
+            alpha_inout = 1 / (self.Vout * Nin)
+            alpha_outin = 1 / (self.Vin * (self.system.num_particles-(Nin-1)))
+            self.system.detailed_balance_data['inout_avbmc']['fwd'] += (prob_old * alpha_inout * acc_inout)
+            self.system.detailed_balance_data['inout_avbmc']['rvr'] += (prob_new * alpha_outin * acc_outin)
+
+        if move_rand >= acc_prob:
             # Reject move - position is already back at old_pos from calc_energy_delta
             self.rejections += 1
         else:
@@ -206,7 +234,23 @@ class OutInAVBMCMove(Move):
 
         avbmc_energy = np.exp(-bias_energy/self.system.kT) * (wnew/wold) * (self.Vin / self.Vout) * ((self.system.num_particles - Nin) / (Nin + 1))
         acc_prob = min(1, avbmc_energy)
-        if np.random.rand() >= acc_prob:
+        move_rand = np.random.rand()
+
+        if self.system.config.parameters['output_detailed_balance']:
+            prob_old = np.exp(-old_energy / self.system.kT)
+            prob_new = np.exp(-new_energy / self.system.kT)
+            acc_inout = (wold/wnew) * (self.Vout / self.Vin) * ((Nin+1) / (self.system.num_particles - Nin))
+            acc_inout = min(1, acc_inout)
+            acc_outin = (wnew/wold) * (self.Vin / self.Vout) * ((self.system.num_particles - Nin) / (Nin + 1))
+            acc_outin = min(1, acc_outin)
+            acc_outin = 1 if acc_outin >= move_rand else 0
+            acc_inout = 1 if acc_inout >= np.random.rand() else 0
+            alpha_inout = 1 / (self.Vout * (Nin+1))
+            alpha_outin = 1 / (self.Vin * (self.system.num_particles-(Nin)))
+            self.system.detailed_balance_data['outin_avbmc']['fwd'] += (prob_old * alpha_outin * acc_outin)
+            self.system.detailed_balance_data['outin_avbmc']['rvr'] += (prob_new * alpha_inout * acc_inout)
+
+        if move_rand >= acc_prob:
             self.system.positions[target_idx] = old_pos
             self.system.energy -= delta_energy
             self.system.bias_energy -= bias_energy
@@ -245,8 +289,8 @@ class NVTInOutMove(Move):
 
         # Store old cluster size for AVBMC calculation
         old_cluster_size = len(self.system.target_clust_idx)
-        delta_energy, bias_energy = self.system.calc_energy_delta(target_idx, new_pos, old_pos)
-        
+        delta_energy, bias_energy, new_energy, old_energy = self.system.calc_energy_delta(target_idx, new_pos, old_pos)
+
         try:
             avbmc_energy = np.exp(-(delta_energy+bias_energy)/self.system.kT)*self.Vout/self.Vin*(Nin)/(self.system.num_particles-old_cluster_size+1)*(old_cluster_size/(old_cluster_size-1))
         except:
@@ -254,7 +298,26 @@ class NVTInOutMove(Move):
             # print(self.Vin, self.Vout, Nin, self.system.num_particles - old_cluster_size + 1, self.system.kT, old_cluster_size)
             avbmc_energy = 0
         acc_prob = min(1, avbmc_energy)
-        if np.random.rand() >= acc_prob:
+        move_rand = np.random.rand()
+
+        if self.system.config.parameters['output_detailed_balance']:
+            prob_old = np.exp(-old_energy / self.system.kT)
+            prob_new = np.exp(-new_energy / self.system.kT)
+            # Forward: deletion (in→out) from cluster of size n
+            n = old_cluster_size
+            if n > 1:
+                acc_deletion = min(1, np.exp(np.clip(-(delta_energy)/self.system.kT, -500, 500))
+                                 * (n/(n-1)) * (Nin/(self.system.num_particles-n+1)) * (self.Vout/self.Vin))
+                acc_insertion = min(1, np.exp(np.clip((delta_energy)/self.system.kT, -500, 500))
+                                  * ((n-1)/n) * ((self.system.num_particles-(n-1))/Nin) * (self.Vin/self.Vout))
+                acc_deletion = 1 if acc_deletion >= move_rand else 0
+                acc_insertion = 1 if acc_insertion >= np.random.rand() else 0
+                alpha_deletion = 1 / (n * Nin * self.Vout)
+                alpha_insertion = 1 / ((n-1) * (self.system.num_particles-(n-1)) * self.Vin)
+                self.system.detailed_balance_data['nvt_inout']['fwd'] += (prob_old * alpha_deletion * acc_deletion)
+                self.system.detailed_balance_data['nvt_inout']['rvr'] += (prob_new * alpha_insertion * acc_insertion)
+
+        if move_rand >= acc_prob:
             # Reject move - position is already back at old_pos from calc_energy_delta
             self.rejections += 1
         else:
@@ -291,12 +354,6 @@ class NVTOutInMove(Move):
         wnew = 0
         rosenbluth_weights = []
         for _ in range(nrb):
-            # displacement = np.round(((np.random.rand(3) - 0.5) * self.system.config.upper_cutoff * 2), 3)
-            # while ((sum(displacement**2) > self.system.config.upper_cutoff**2) or (sum(displacement**2) < self.system.config.lower_cutoff**2)):
-            #     displacement = np.round(((np.random.rand(3) - 0.5) * self.system.config.upper_cutoff * 2), 3)
-            
-            # new_pos = (self.system.positions[anchor_idx] + displacement) % (self.system.box_length)
-            # Uniform sampling on the sphere for direction
             r = np.cbrt(np.random.rand() * (self.system.clust_cutoff**3 - self.system.config.lower_cutoff**3) + self.system.config.lower_cutoff**3)
             phi = 2 * np.pi * np.random.rand()
             cos_theta = 2 * np.random.rand() - 1
@@ -356,10 +413,28 @@ class NVTOutInMove(Move):
         self.system.energy += delta_energy
         self.system.bias_energy += bias_energy
 
-        avbmc_energy = np.exp(-bias_energy/self.system.kT) * (wnew/wold) * (self.Vin / self.Vout) * ((self.system.num_particles - len(self.system.tmp_target_clust_idx)) / (Nin + 1)) * ((len(self.system.tmp_target_clust_idx)) / (len(self.system.tmp_target_clust_idx)+1))
-        
+        # Use old cluster size (before insertion) for acceptance calculation
+        n = len(self.system.tmp_target_clust_idx)
+        avbmc_energy = np.exp(-bias_energy/self.system.kT) * (wnew/wold) * (self.Vin / self.Vout) * ((self.system.num_particles - n) / (Nin + 1)) * (n / (n+1))
+
         acc_prob = min(1, avbmc_energy)
-        if np.random.rand() >= acc_prob:
+        move_rand = np.random.rand() # want to use the same random number for detailed balance fwd move
+
+        if self.system.config.parameters['output_detailed_balance']:
+            prob_old = np.exp(-old_energy / self.system.kT)
+            prob_new = np.exp(-new_energy / self.system.kT)
+            acc_insertion = min(1, (wnew/wold) * (self.Vin/self.Vout)
+                              * ((self.system.num_particles-n)/(Nin+1)) * (n/(n+1)))
+            acc_deletion = min(1, (wold/wnew) * (self.Vout/self.Vin)
+                             * ((n+1)/n) * ((Nin+1)/(self.system.num_particles-(n+1)+1)))
+            acc_insertion = 1 if acc_insertion >= move_rand else 0
+            acc_deletion = 1 if acc_deletion >= np.random.rand() else 0
+            alpha_insertion = 1 / (n * (self.system.num_particles-n) * self.Vin)
+            alpha_deletion = 1 / ((n+1) * (Nin+1) * self.Vout)
+            self.system.detailed_balance_data['nvt_outin']['fwd'] += (prob_old * alpha_insertion * acc_insertion)
+            self.system.detailed_balance_data['nvt_outin']['rvr'] += (prob_new * alpha_deletion * acc_deletion)
+
+        if move_rand >= acc_prob:
             self.system.positions[target_idx] = old_pos
             self.system.energy -= delta_energy
             self.system.bias_energy -= bias_energy
