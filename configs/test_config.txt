@@ -1,5 +1,5 @@
 # CONCENTRATION
-box_length = 51.72367392516914
+concentration = 0.01
 num_particles = 1000
 
 # SIMULATION SETTINGS
@@ -14,16 +14,16 @@ bias_type = none
 
 # MOVE RATES
 avbmc_rate = 0.2
-nvt_rate = 0.0
-translation_rate = 0.8
+nvt_rate = 0.1
+translation_rate = 0.7
 swap_rate = 0.0
-max_displacement = 4.2
+max_displacement = 1.0
 
 # CLUSTER DEFINITION
-upper_cutoff = 3.5
-lower_cutoff = 2.5
-clust_cutoff = 3.5
+upper_cutoff = 3.9
+lower_cutoff = 2.7
+clust_cutoff = 3.9
 
 # INPUT FILES
-ff_path = JC_NaCl.txt
+ff_path = gale.txt
 input_path = none

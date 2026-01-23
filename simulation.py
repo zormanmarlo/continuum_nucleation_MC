@@ -27,6 +27,7 @@ class Simulation:
         
         self.system = System(self.config, ID)
         self.system.init_positions(input_path=self.config.input_path, multi=multi_inputs)
+        self.target_sizes = []
         
         
         # Pre-build file paths for cleaner code
@@ -89,6 +90,7 @@ class Simulation:
         # Write target cluster information
         with open(self.target_cluster_file, 'a') as f:
             f.write(f'{step} {len(target_clust)} {target_clust}\n')
+        self.target_sizes.append(len(target_clust))
         
         # Write move acceptance statistics
         with open(self.stats_file, 'a') as f:
@@ -97,14 +99,14 @@ class Simulation:
             f.write(f'{step} {rates_str}\n')
         
         # Reset stats for active moves only
-        for move in self.system.active_moves:
-            move.reset_stats()
+        # for move in self.system.active_moves:
+            # move.reset_stats()
         
 
 def equal_hist(dist):
     '''Check if histogram distribution is sufficiently flat for adaptive umbrella sampling convergence'''
     max_diff = np.max(np.abs(np.diff(dist)))
-    if max_diff <= 0.05 * np.mean(dist):
+    if max_diff <= 0.10 * np.mean(dist):
         return True
     else:
         return False
@@ -182,44 +184,40 @@ if __name__ == "__main__":
             current_it += 1
             pkl.dump(simulations, open(f"{args.jobname}/system.pkl", "wb"))
 
-            # Collect target cluster sizes from all simulations
-            cluster_counts = []
-            for sim in simulations:
-                _, target_clust = sim.system.find_clusters()
-                cluster_counts.append(len(target_clust))
-            cluster_counts = np.array(cluster_counts)
+            cluster_counts = np.concatenate([sim.target_sizes for sim in simulations])
             dist = np.histogram(cluster_counts, bins=np.arange(1, simulations[0].config.parameters["max_target"]+2))[0]
             with open(f"{args.jobname}/histograms.out", "a") as file:
                 file.write(f"{dist}\n")
-            
+
             for sim in simulations:
                 sim.system.bias.update(dist)
-                # No need to reset target_sizes since we compute them on-demand
+                # Reset data after each iteration, unclear if this is the best way to do this
+                sim.system.target_sizes = []
+                sim.target_sizes = []
                 if all(dist > 0):
-                    sim.config.parameters["prod_steps"] = sim.config.parameters["prod_steps"] + int(orig_prod_steps*0.2)
+                    sim.system.config.parameters["prod_steps"] = sim.system.config.parameters["prod_steps"] + int(orig_prod_steps*0.2)
             potential = simulations[0].system.bias.bias
             with open(f"{args.jobname}/potentials.out", "a") as file:
                 file.write(f"{potential}\n")
-            
+
             with mp.Pool(processes=args.np) as pool:
                 simulations = pool.map(production_run, simulations, True)
-            logger.info("updating bias")
+            print("updating bias")
 
             if equal_hist(dist):
-                logger.info(f"potential converged in {current_it} iterations -- ending run")
+                print(f"potential converged in {current_it} iterations -- ending run")
                 potential = simulations[0].system.bias.bias
-                
-                # Save final system - collect final cluster sizes
-                final_cluster_counts = []
-                for sim in simulations:
-                    _, target_clust = sim.system.find_clusters()
-                    final_cluster_counts.append(len(target_clust))
-                final_cluster_counts = np.array(final_cluster_counts)
-                dist = np.histogram(final_cluster_counts, bins=np.arange(1, simulations[0].config.parameters["max_target"]+2))[0]
+
+                # Save final system
+                sizes = np.concatenate([sim.target_sizes[-2 * sim.config.parameters["num_steps"] // sim.config.parameters["output_interval"]:] for sim in simulations])
+                dist = np.histogram(sizes, bins=np.arange(1, simulations[0].config.parameters["max_target"]+2))[0]
                 with open(f"{args.jobname}/histograms.out", "a") as file:
+                    file.write("FINAL HISTOGRAM:\n")
                     file.write(f"{dist}\n")
                 with open(f"{args.jobname}/potentials.out", "a") as file:
+                    file.write("FINAL POTENTIAL:\n")
                     file.write(f"{potential[-1]}\n")
-                
+
                 pkl.dump(simulations, open(f"{args.jobname}/system.pkl", "wb"))
                 cont = False
+
