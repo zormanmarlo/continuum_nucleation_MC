@@ -1,4 +1,5 @@
 # .gitignore
 CLAUDE*
+test_scripts/
 test/
 inputs/
