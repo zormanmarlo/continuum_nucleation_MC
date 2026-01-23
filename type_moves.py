@@ -49,11 +49,7 @@ class TranslationMove(Move):
             # Accept move - update position and system energy
             self.system.positions[particle_idx] = new_pos
             self.system.energy += delta_energy
-            # Recalculate bias energy instead of accumulating to avoid drift
-            if self.system.bias is not None:
-                self.system.bias_energy = self.system.bias.energy(len(self.system.target_clust_idx))
-            else:
-                self.system.bias_energy = 0.0
+            self.system.bias_energy += bias_energy
 
 
 class SwapMove(Move):
@@ -78,25 +74,21 @@ class SwapMove(Move):
             # Accept move - update position and system energy
             self.system.positions[particle_idx] = new_pos
             self.system.energy += delta_energy
-            # Recalculate bias energy instead of accumulating to avoid drift
-            if self.system.bias is not None:
-                self.system.bias_energy = self.system.bias.energy(len(self.system.target_clust_idx))
-            else:
-                self.system.bias_energy = 0.0
+            self.system.bias_energy += bias_energy
 
 
 class InOutAVBMCMove(Move):
     def __init__(self, system):
         '''Initialize AVBMC in-out move with volume calculations for bias correction'''
         super().__init__(system)
-        self.Vin = 4.0/3.0 * np.pi * (self.system.clust_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_cutoff**3)
+        self.Vin = 4.0/3.0 * np.pi * (self.system.config.upper_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_cutoff**3)
         self.Vout = self.system.box_length**3
 
-    def attempt_move(self, anchor_idx):
+    def attempt_move(self, anchor_idx, Nin_idx, part_type):
         '''Attempt AVBMC move to remove particle from cluster to bulk solution'''
         self.attempts += 1
 
-        Nin, Nin_idx = self.system.calc_in(anchor_idx)
+        Nin = len(Nin_idx)
         if Nin == 0 or (Nin == 1 and 0 in Nin_idx):
             self.rejections += 1
             return
@@ -108,8 +100,10 @@ class InOutAVBMCMove(Move):
             new_pos = np.round(((np.random.rand(3) - 0.5) * self.system.box_length * 2), 3) % self.system.box_length
 
         delta_energy, bias_energy = self.system.calc_energy_delta(target_idx, new_pos, old_pos)
-        # INCORRECT
-        avbmc_energy = np.exp(np.clip((-(delta_energy+bias_energy)/self.system.kT)*self.Vout/self.Vin*(Nin)/(self.system.num_particles-Nin+1), -500, 500))
+
+        Nout = len([i for i in range(self.system.num_particles) if self.system.types[i] == part_type]) - Nin
+        avbmc_energy = np.exp(np.clip(-(delta_energy+bias_energy)/self.system.kT,
+                                -500, 500)) * self.Vout/self.Vin * (Nin)/(Nout-Nin+1)
         acc_prob = min(1, avbmc_energy)
         if np.random.rand() >= acc_prob:
             # Reject move - position is already back at old_pos from calc_energy_delta
@@ -118,27 +112,24 @@ class InOutAVBMCMove(Move):
             # Accept move - update position and system energy
             self.system.positions[target_idx] = new_pos
             self.system.energy += delta_energy
-            # Recalculate bias energy instead of accumulating to avoid drift
-            if self.system.bias is not None:
-                self.system.bias_energy = self.system.bias.energy(len(self.system.target_clust_idx))
-            else:
-                self.system.bias_energy = 0.0
+            self.system.bias_energy += bias_energy
 
 
 class OutInAVBMCMove(Move):
     def __init__(self, system):
         '''Initialize AVBMC out-in move with volume calculations and Rosenbluth sampling'''
         super().__init__(system)
-        self.Vin = 4.0/3.0 * np.pi * (self.system.clust_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_cutoff**3)
+        self.Vin = 4.0/3.0 * np.pi * (self.system.config.upper_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_cutoff**3)
         self.Vout = self.system.box_length**3
     
-    def attempt_move(self, anchor_idx):
+    def attempt_move(self, anchor_idx, Nin_idx, part_type):
         '''Attempt AVBMC move to insert bulk particle into cluster using Rosenbluth weighting'''
         self.attempts += 1
 
-        Nin, Nin_idx = self.system.calc_in(anchor_idx)
+        # Nin, Nin_idx = self.system.calc_in(anchor_idx, opp_type=True)
+        Nin = len(Nin_idx)
         target_idx = np.random.randint(self.system.num_particles)
-        while (target_idx in Nin_idx) or (target_idx == anchor_idx) or (target_idx == 0):
+        while (target_idx in Nin_idx) or (target_idx == anchor_idx) or (target_idx == 0) or (self.system.types[target_idx] != part_type):
             target_idx = np.random.randint(self.system.num_particles)
 
         old_energy = self.system.calc_energy(target_idx)
@@ -146,11 +137,11 @@ class OutInAVBMCMove(Move):
         self.system.target_clust_idx = self.system.find_target_cluster()
 
         # Calculate wnew for the new configuration
-        nrb = 32  # Number of Rosenbluth trials
+        nrb = self.system.config.n_rosenbluth_trials
         wnew = 0
         rosenbluth_weights = []
         for _ in range(nrb):            
-            r = np.cbrt(np.random.rand() * (self.system.clust_cutoff**3 - self.system.config.lower_cutoff**3) + self.system.config.lower_cutoff**3)
+            r = np.cbrt(np.random.rand() * (self.system.config.upper_cutoff**3 - self.system.config.lower_cutoff**3) + self.system.config.lower_cutoff**3)
             # Uniform sampling on the sphere for direction
             phi = 2 * np.pi * np.random.rand()
             cos_theta = 2 * np.random.rand() - 1
@@ -179,11 +170,9 @@ class OutInAVBMCMove(Move):
             return
 
         # Select one configuration based on Rosenbluth weights
-        valid_rosenbluth_weights = [(weight, d, pos) for weight, d, pos in rosenbluth_weights if np.isfinite(weight) and weight > 0]
-        wnew_valid = sum(weight for weight, _, _ in valid_rosenbluth_weights)
-
-        rosenbluth_weights_norm = [(weight / wnew_valid, d, pos) for weight, d, pos in valid_rosenbluth_weights]
-        _, new_energy, selected_pos = valid_rosenbluth_weights[np.random.choice(range(len(valid_rosenbluth_weights)), p=[weight for weight, d, pos in rosenbluth_weights_norm])]
+        wnew_valid = sum(weight for weight, _, _ in rosenbluth_weights)
+        rosenbluth_weights_norm = [(weight / wnew_valid, d, pos) for weight, d, pos in rosenbluth_weights]
+        _, new_energy, selected_pos = rosenbluth_weights[np.random.choice(range(len(rosenbluth_weights)), p=[weight for weight, d, pos in rosenbluth_weights_norm])]
         self.system.positions[target_idx] = selected_pos
 
         wold = np.exp(-(old_energy) / self.system.kT)  # Initial weight for SwapPart in the original position
@@ -212,56 +201,39 @@ class OutInAVBMCMove(Move):
 
         delta_energy = new_energy - old_energy
         self.system.energy += delta_energy
-        # Recalculate bias energy instead of accumulating to avoid drift
-        if self.system.bias is not None:
-            self.system.bias_energy = self.system.bias.energy(len(self.system.target_clust_idx))
-        else:
-            self.system.bias_energy = 0.0
+        self.system.bias_energy += bias_energy
 
-        avbmc_energy = np.exp(-bias_energy/self.system.kT) * (wnew/wold) * (self.Vin / self.Vout) * ((self.system.num_particles - Nin) / (Nin + 1))
+        Nout = len([i for i in range(self.system.num_particles) if self.system.types[i] == part_type]) - Nin
+        avbmc_energy = np.exp(-bias_energy/self.system.kT) * (wnew/wold) * (self.Vin / self.Vout) * ((Nout - Nin) / (Nin + 1))
         acc_prob = min(1, avbmc_energy)
         if np.random.rand() >= acc_prob:
             self.system.positions[target_idx] = old_pos
             self.system.energy -= delta_energy
-            # Recalculate bias energy after position rollback
-            if self.system.bias is not None:
-                self.system.bias_energy = self.system.bias.energy(len(self.system.target_clust_idx))
-            else:
-                self.system.bias_energy = 0.0
+            self.system.bias_energy -= bias_energy
             self.rejections += 1
 
 class NVTInOutMove(Move):
     def __init__(self, system):
         '''Initialize NVT in-out move for cluster nucleation with AVBMC bias correction'''
         super().__init__(system)
-        self.Vin = 4.0/3.0 * np.pi * (self.system.clust_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_cutoff**3)
+        self.Vin = 4.0/3.0 * np.pi * (self.system.config.upper_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_cutoff**3)
         self.Vout = self.system.box_length**3
     
-    def attempt_move(self, anchor_idx, Nin_idx):
+    def attempt_move(self, anchor_idx, Nin_idx, part_type):
         '''Attempt NVT move to remove particle from target cluster to bulk with nucleation bias'''
         self.attempts += 1
         Nin = len(Nin_idx)
 
-        Nin, Nin_idx = self.system.calc_in(anchor_idx)
         if Nin == 0 or (Nin == 1 and 0 in Nin_idx):
             self.rejections += 1
             return
+
         target_idx = np.random.choice(Nin_idx)
-        
-        # Ensure particle we are moving is not the cluster defining particle
-        while target_idx == 1:
-            if Nin == 1:
-                self.rejections += 1
-                return
-            target_idx = np.random.choice(Nin_idx)
-
-
         old_pos = self.system.positions[target_idx].copy()
 
         new_pos = np.round(((np.random.rand(3) - 0.5) * self.system.box_length * 2), 3) % self.system.box_length
+
         regen = True
-        # Ensure target cluster is current
-        self.system.target_clust_idx = self.system.find_target_cluster()
         clust_pos = np.asarray([self.system.positions[i] for i in self.system.target_clust_idx])
         while regen:
             distances = np.linalg.norm(clust_pos - new_pos, axis=1)
@@ -271,14 +243,15 @@ class NVTInOutMove(Move):
                 new_pos = np.round(((np.random.rand(3) - 0.5) * self.system.box_length * 2), 3) % self.system.box_length
 
         # Store old cluster size for AVBMC calculation
-        old_cluster_size = len(self.system.target_clust_idx)
+        old_cluster_size = len(self.system.target_clust_idx) # might need to change this to half of cluster?
         delta_energy, bias_energy = self.system.calc_energy_delta(target_idx, new_pos, old_pos)
-        
+        # Nout = len([i for i in range(self.system.num_particles) if self.system.types[i] == self.system.types[target_idx]]) - Nin
+        N_type = len([i for i in range(self.system.num_particles) if self.system.types[i] == part_type])
+        n_type = len([i for i in self.system.target_clust_idx if self.system.types[i] == part_type])
+
         try:
-            avbmc_energy = np.exp(-(delta_energy+bias_energy)/self.system.kT)*self.Vout/self.Vin*(Nin)/(self.system.num_particles-old_cluster_size+1)*(old_cluster_size/(old_cluster_size-1))
+            avbmc_energy = np.exp(-(delta_energy+bias_energy)/self.system.kT)*self.Vout/self.Vin*(Nin)/(N_type-n_type+1)*(old_cluster_size/(old_cluster_size-1))
         except:
-            # print("ZeroDivisionError")
-            # print(self.Vin, self.Vout, Nin, self.system.num_particles - old_cluster_size + 1, self.system.kT, old_cluster_size)
             avbmc_energy = 0
         acc_prob = min(1, avbmc_energy)
         if np.random.rand() >= acc_prob:
@@ -288,49 +261,50 @@ class NVTInOutMove(Move):
             # Accept move - update position and system energy
             self.system.positions[target_idx] = new_pos
             self.system.energy += delta_energy
-            # Recalculate bias energy instead of accumulating to avoid drift
-            if self.system.bias is not None:
-                self.system.bias_energy = self.system.bias.energy(len(self.system.target_clust_idx))
-            else:
-                self.system.bias_energy = 0.0
+            self.system.bias_energy += bias_energy
 
 
 class NVTOutInMove(Move):
     def __init__(self, system):
         '''Initialize NVT out-in move for cluster growth with Rosenbluth sampling and nucleation bias'''
         super().__init__(system)
-        self.Vin = 4.0/3.0 * np.pi * (self.system.clust_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_cutoff**3)
+        self.Vin = 4.0/3.0 * np.pi * (self.system.config.upper_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_cutoff**3)
         self.Vout = self.system.box_length**3
     
-    def attempt_move(self, anchor_idx, Nin_idx):
+    def attempt_move(self, anchor_idx, Nin_idx, part_type):
         '''Attempt NVT move to insert bulk particle into target cluster using Rosenbluth weighting'''
         self.attempts += 1
         Nin = len(Nin_idx)
 
         target_idx = np.random.randint(self.system.num_particles)
-        # Ensure target cluster is current
-        self.system.target_clust_idx = self.system.find_target_cluster()
         while (target_idx in Nin_idx) or (target_idx == anchor_idx) or (target_idx == 0) or (target_idx in self.system.target_clust_idx):
             target_idx = np.random.randint(self.system.num_particles)
 
         old_energy = self.system.calc_energy(target_idx)
         old_pos = self.system.positions[target_idx].copy()
-        self.system.target_clust_idx = self.system.find_target_cluster()
 
         # Calculate wnew for the new configuration
-        nrb = 32  # Number of Rosenbluth trials
+        nrb = self.system.config.n_rosenbluth_trials
         wnew = 0
         rosenbluth_weights = []
-        for _ in range(nrb):
-            displacement = np.round(((np.random.rand(3) - 0.5) * self.system.config.upper_cutoff * 2), 3)
-            while ((sum(displacement**2) > self.system.config.upper_cutoff**2) or (sum(displacement**2) < self.system.config.lower_cutoff**2)):
-                displacement = np.round(((np.random.rand(3) - 0.5) * self.system.config.upper_cutoff * 2), 3)
+        for _ in range(nrb):  
+            r = np.cbrt(np.random.rand() * (self.system.config.upper_cutoff**3 - self.system.config.lower_cutoff**3) + self.system.config.lower_cutoff**3)
+            # Uniform sampling on the sphere for direction
+            phi = 2 * np.pi * np.random.rand()
+            cos_theta = 2 * np.random.rand() - 1
+            sin_theta = np.sqrt(1 - cos_theta**2)
             
-            new_pos = (self.system.positions[anchor_idx] + displacement) % (self.system.box_length)
+            # Convert to Cartesian coordinates
+            x = r * sin_theta * np.cos(phi)
+            y = r * sin_theta * np.sin(phi)
+            z = r * cos_theta
+            new_pos = (self.system.positions[anchor_idx] + np.array([x, y, z])) % (self.system.box_length)
+            
             self.system.positions[target_idx] = new_pos
             new_energy = self.system.calc_energy(target_idx)
             w = np.exp(-new_energy / self.system.kT)
-            if np.isnan(w):
+            if np.isnan(w) or np.isinf(w):
+                w = 0
                 wnew += 0
             else:
                 wnew += w
@@ -342,11 +316,8 @@ class NVTOutInMove(Move):
             return
 
         # Select one configuration based on Rosenbluth weights
-        valid_rosenbluth_weights = [(weight, d, pos) for weight, d, pos in rosenbluth_weights if np.isfinite(weight) and weight > 0]
-        wnew_valid = sum(weight for weight, _, _ in valid_rosenbluth_weights)
-        
-        rosenbluth_weights_norm = [(weight / wnew_valid, d, pos) for weight, d, pos in valid_rosenbluth_weights]
-        _, new_energy, selected_pos = valid_rosenbluth_weights[np.random.choice(range(len(valid_rosenbluth_weights)), p=[weight for weight, d, pos in rosenbluth_weights_norm])]
+        rosenbluth_weights_norm = [(weight / wnew, d, pos) for weight, d, pos in rosenbluth_weights]
+        _, new_energy, selected_pos = rosenbluth_weights[np.random.choice(range(len(rosenbluth_weights)), p=[weight for weight, d, pos in rosenbluth_weights_norm])]
         self.system.positions[target_idx] = selected_pos
 
         # Calculate wold for the original configuration
@@ -366,7 +337,6 @@ class NVTOutInMove(Move):
             wold += w
             self.system.positions[target_idx_out] = old_pos_out
 
-
         self.system.tmp_target_clust_idx = self.system.target_clust_idx.copy()
         if self.system.bias is not None:
             self.system.target_clust_idx = self.system.find_target_cluster()
@@ -376,21 +346,17 @@ class NVTOutInMove(Move):
 
         delta_energy = new_energy - old_energy
         self.system.energy += delta_energy
-        # Recalculate bias energy instead of accumulating to avoid drift
-        if self.system.bias is not None:
-            self.system.bias_energy = self.system.bias.energy(len(self.system.target_clust_idx))
-        else:
-            self.system.bias_energy = 0.0
+        self.system.bias_energy += bias_energy
 
-        avbmc_energy = np.exp(-bias_energy/self.system.kT) * (wnew/wold) * (self.Vin / self.Vout) * ((self.system.num_particles - len(self.system.tmp_target_clust_idx)) / (Nin + 1)) * ((len(self.system.tmp_target_clust_idx)) / (len(self.system.tmp_target_clust_idx)+1))
-        
+        # Nout = len([i for i in range(self.system.num_particles) if self.system.types[i] == self.system.types[target_idx]]) - Nin
+        N_oppo = len([i for i in range(self.system.num_particles) if self.system.types[i] == part_type])
+        n_oppo = len([i for i in self.system.tmp_target_clust_idx if self.system.types[i] == part_type])
+        avbmc_energy = np.exp(-bias_energy/self.system.kT) * (wnew/wold) * (self.Vin / self.Vout) * ((N_oppo - n_oppo) / (Nin + 1)) * ((len(self.system.tmp_target_clust_idx)) / (len(self.system.tmp_target_clust_idx)+1))
+        # print(wnew/wold, (self.Vin / self.Vout), (N_oppo - n_oppo) / (Nin + 1), ((len(self.system.tmp_target_clust_idx)) / (len(self.system.tmp_target_clust_idx)+1)))
         acc_prob = min(1, avbmc_energy)
+        # print(acc_prob)
         if np.random.rand() >= acc_prob:
             self.system.positions[target_idx] = old_pos
             self.system.energy -= delta_energy
-            # Recalculate bias energy after position rollback
-            if self.system.bias is not None:
-                self.system.bias_energy = self.system.bias.energy(len(self.system.target_clust_idx))
-            else:
-                self.system.bias_energy = 0.0
+            self.system.bias_energy -= bias_energy
             self.rejections += 1

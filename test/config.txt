@@ -1,5 +1,5 @@
 # CONCENTRATION
-concentration = 0.5
+concentration = 0.1
 num_particles = 250
 
 # SIMULATION SETTINGS
