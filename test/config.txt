@@ -1,0 +1,39 @@
+# CONCENTRATION
+ratio = 1:0
+box_length = 33.50
+num_particles = 864
+
+# SIMULATION SETTINGS
+equil_steps = 0
+prod_steps = 10000
+output_interval = 1
+internal_interval = 10
+seed = 11
+output_detailed_balance = False
+output_rcut = True
+
+# LJ SETTINGS
+kT = 0.67
+energy_cutoff = 4.5
+epsilon = 0.8955223881
+sigma = 1
+
+# BIAS SETTINGS
+bias_type = None
+max_target = 30
+
+# MOVE RATES
+avbmc_rate = 1.0
+nvt_rate = 0.0
+translation_rate = 0.0
+swap_rate = 0.0
+max_displacement = 10
+rosenbluth_trials = 1
+
+# CLUSTER DEFINITION
+upper_cutoff = 1.5
+lower_cutoff = 0
+clust_cutoff = 1.5
+
+# INPUT FILES
+input_path = none

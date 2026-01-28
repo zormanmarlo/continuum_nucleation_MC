@@ -13,6 +13,7 @@ class System:
         self.box_length = config.box_length
         self.num_particles = config.num_particles
         self.kT = config.kT
+        self.rcut = 0 
 
         self.id = str(id).zfill(2)
         self.pmf = PMF(config.epsilon, config.sigma, config.energy_cutoff)
@@ -132,36 +133,28 @@ class System:
         # Dynamic move selection using probabilities from config
         if not self.active_moves:
             return  # No moves configured
+        
+        for particle in range(self.num_particles):
+            move_idx = np.random.choice(len(self.active_moves), 
+                                    p=self.move_probabilities)
             
-        move_idx = np.random.choice(len(self.active_moves), 
-                                   p=self.move_probabilities)
-        selected_move = self.active_moves[move_idx]
-        move_name = self.move_names[move_idx]
-        
-        # Handle move-specific parameter requirements
-        particle = np.random.randint(self.config.num_particles)
-        
-        if 'nvt' in move_name:
-            # NVT moves need special handling
-            self.find_target_cluster()
-            particle = np.random.choice(self.target_clust_idx)
-            Nin, Nin_idx = self.calc_in(particle)
-            selected_move.attempt_move(particle, Nin_idx)
+            # If particle is not in target cluster, skip NVT move
+            if 'nvt' in self.move_names[move_idx]:
+                self.find_target_cluster()
+            while particle not in self.target_clust_idx and 'nvt' in self.move_names[move_idx]:
+                move_idx = np.random.choice(len(self.active_moves), p=self.move_probabilities)
 
-        elif move_name == 'inout_avbmc':
-            # Check if inout move is possible, fallback to outin if not
-            Nin, Nin_idx = self.calc_in(particle)
-            if Nin >= 1:
-                # Particle has neighbors, inout move is possible
-                selected_move.attempt_move(particle)
+            selected_move = self.active_moves[move_idx]
+            move_name = self.move_names[move_idx]
+            
+            if 'nvt' in move_name:
+                # NVT moves need special handling
+                self.find_target_cluster()
+                particle = np.random.choice(self.target_clust_idx)
+                Nin, Nin_idx = self.calc_in(particle)
+                selected_move.attempt_move(particle, Nin_idx)
             else:
-                # No neighbors, fallback to outin move
-                for move_idx, move_name in enumerate(self.move_names):
-                    if move_name == 'outin_avbmc':
-                        self.active_moves[move_idx].attempt_move(particle)
-                        break
-        else:
-            selected_move.attempt_move(particle)
+                selected_move.attempt_move(particle)
 
     def calc_energy_delta(self, particle_idx, new_pos, old_pos):
         '''Calculate energy difference between new and old positions, including bias energy if applicable'''
@@ -172,6 +165,13 @@ class System:
             new_energy = self.calc_energy(particle_idx)
             delta_energy = new_energy - old_energy
             delta_bias_energy = 0.0
+
+            # Check if max cluster size exceeds target
+            clusters, _ = self.find_clusters()
+            max_cluster_size = max(clusters)
+            if max_cluster_size > self.config.max_target:
+                delta_bias_energy = 10000.0
+
         # If bias is active must calculate change in cluster size
         else:
             old_cluster = len(self.find_target_cluster())
@@ -181,7 +181,15 @@ class System:
             new_cluster = len(self.find_target_cluster())
             new_energy = self.calc_energy(particle_idx)
             delta_energy = new_energy - old_energy
-            delta_bias_energy = self.bias.denergy(new_cluster, old_cluster)
+            
+            # Check if max cluster size exceeds target
+            clusters, _ = self.find_clusters()
+            max_cluster_size = max(clusters)
+            delta_bias_energy = 0.0
+            if max_cluster_size > self.config.max_target:
+                delta_bias_energy = 10000.0
+
+            delta_bias_energy += self.bias.denergy(new_cluster, old_cluster)
 
         self.positions[particle_idx] = old_pos  # Reset position after calculation
         return delta_energy, delta_bias_energy, new_energy, old_energy
@@ -270,7 +278,6 @@ class System:
         
     def calc_in(self, particle_idx):
         '''Calculate neighbors within cluster cutoff distance using PBC distances.'''
-        """Calculate neighbors within cluster cutoff distance using PBC distances."""
         # Calculate distances from particle to all others with PBC
         pos = self.positions[particle_idx]
         pos_diff = self.positions - pos
@@ -286,9 +293,41 @@ class System:
         
         return Nin, Nin_idx
 
-    
     def calc_dist(self, pos1, pos2):
         '''Calculate minimum image distance between two positions with periodic boundary conditions'''
         dist_vec = np.abs(pos1 - pos2)
         dist_vec = dist_vec - self.box_length * np.round(dist_vec / self.box_length)
         return np.linalg.norm(dist_vec)
+    
+    def unwrap_positions(self, cluster_indices):
+        '''Unwrap positions of particles in a cluster relative to the first particle, removing periodic boundary conditions'''
+        if len(cluster_indices) == 0:
+            return np.array([])
+
+        # Use first particle as fixed reference point
+        reference_pos = self.positions[cluster_indices[0]]
+        unwrapped_positions = np.zeros((len(cluster_indices), 3))
+        unwrapped_positions[0] = reference_pos
+
+        # Unwrap all other particles relative to the first particle
+        for i, idx in enumerate(cluster_indices[1:], start=1):
+            pos = self.positions[idx]
+            delta = pos - reference_pos
+            delta -= self.box_length * np.round(delta / self.box_length)
+            unwrapped_positions[i] = reference_pos + delta
+
+        return unwrapped_positions
+
+    def calc_rcut(self, clust=None):
+        '''Calculate rcut as the maximum distance from geometric center of target cluster to its particles'''
+        clust = self.find_target_cluster() if clust is None else clust
+        positions = self.unwrap_positions(clust)
+        geometric_center = np.mean(positions, axis=0)
+        pos_diff = positions - geometric_center
+        distances = np.linalg.norm(pos_diff, axis=1)
+        rcut = np.max(distances)
+        self.rcut = rcut
+        if rcut > 2:
+            print(positions)
+            print(pos_diff)
+        return rcut

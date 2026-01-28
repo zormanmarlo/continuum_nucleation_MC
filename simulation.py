@@ -29,7 +29,6 @@ class Simulation:
         self.system.init_positions(input_path=self.config.input_path, multi=multi_inputs)
         self.target_sizes = []
         
-        
         # Pre-build file paths for cleaner code
         self.output_dir = f'{self.path}/{self.jobname}'
         self.stats_file = f'{self.output_dir}/stats-{self.ID}.log'
@@ -38,10 +37,12 @@ class Simulation:
         self.clusters_file = f'{self.output_dir}/clusters-{self.ID}.out'
         self.target_cluster_file = f'{self.output_dir}/target_cluster-{self.ID}.out'
 
-        if self.config.parameters.get('output_detailed_balance', True):
+        if self.config.parameters.get('output_detailed_balance', False):
             self.detailed_balance_file = f'{self.output_dir}/detailed_balance-{self.ID}.log'
             with open(self.detailed_balance_file, 'a') as f:
                 f.write('# step ' + ' '.join(name for name in self.system.move_names) + '\n')
+        if self.config.parameters.get('output_rcut', False):
+            self.rcut_file = f'{self.output_dir}/rcut-{self.ID}.log'
 
         if self.system.bias is not None and self.system.bias.type == 'harmonic':
             self.colvar_file = f'{self.output_dir}/colvar_{self.system.bias.center}.out'
@@ -50,7 +51,6 @@ class Simulation:
             move_headers = ' '.join(f'{name}_acceptance' for name in self.system.move_names)
             f.write(f'# step {move_headers}\n')
         
-        
     def clean_dir(self):
         '''Remove all existing output files to ensure clean simulation start'''
         files_to_clean = [
@@ -58,12 +58,14 @@ class Simulation:
             self.traj_file,
             self.clusters_file,
             self.target_cluster_file,
-            self.stats_file
+            self.stats_file,
         ]
         if hasattr(self, 'colvar_file'):
             files_to_clean.append(self.colvar_file)
         if hasattr(self, 'detailed_balance_file'):
             files_to_clean.append(self.detailed_balance_file)
+        if hasattr(self, 'rcut_file'):
+            files_to_clean.append(self.rcut_file)
             
         for file_path in files_to_clean:
             if os.path.exists(file_path):
@@ -120,6 +122,11 @@ class Simulation:
                     for name in self.system.move_names
                 )
                 f.write(f'{step} {db_str}\n')
+        
+        if hasattr(self, 'rcut_file'):
+            self.system.calc_rcut(target_clust)
+            with open(self.rcut_file, 'a') as f:
+                f.write(f'{step} {len(target_clust)} {self.system.rcut}\n')
 
 def equal_hist(dist):
     '''Check if histogram distribution is sufficiently flat for adaptive umbrella sampling convergence'''

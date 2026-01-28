@@ -126,7 +126,9 @@ class InOutAVBMCMove(Move):
             acc_inout = min(1, np.exp(np.clip(-(delta_energy)/self.system.kT, -500, 500)) * self.Vout/self.Vin * Nin/(self.system.num_particles-Nin+1))
             acc_outin =  min(1, np.exp(np.clip((delta_energy)/self.system.kT, -500, 500)) * self.Vin/self.Vout * (self.system.num_particles-(Nin-1))/(Nin-1+1))
             acc_inout = 1 if acc_inout >= move_rand else 0
+            # acc_outin = 1 if acc_outin < move_rand else 0
             acc_outin = 1 if acc_outin >= np.random.rand() else 0
+
             alpha_inout = 1 / (self.Vout * Nin)
             alpha_outin = 1 / (self.Vin * (self.system.num_particles-(Nin-1)))
             self.system.detailed_balance_data['inout_avbmc']['fwd'] += (prob_old * alpha_inout * acc_inout)
@@ -245,6 +247,7 @@ class OutInAVBMCMove(Move):
             acc_outin = min(1, acc_outin)
             acc_outin = 1 if acc_outin >= move_rand else 0
             acc_inout = 1 if acc_inout >= np.random.rand() else 0
+
             alpha_inout = 1 / (self.Vout * (Nin+1))
             alpha_outin = 1 / (self.Vin * (self.system.num_particles-(Nin)))
             self.system.detailed_balance_data['outin_avbmc']['fwd'] += (prob_old * alpha_outin * acc_outin)
