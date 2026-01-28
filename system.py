@@ -303,19 +303,15 @@ class System:
         '''Unwrap positions of particles in a cluster relative to the first particle, removing periodic boundary conditions'''
         if len(cluster_indices) == 0:
             return np.array([])
-
         # Use first particle as fixed reference point
         reference_pos = self.positions[cluster_indices[0]]
         unwrapped_positions = np.zeros((len(cluster_indices), 3))
         unwrapped_positions[0] = reference_pos
-
-        # Unwrap all other particles relative to the first particle
         for i, idx in enumerate(cluster_indices[1:], start=1):
             pos = self.positions[idx]
             delta = pos - reference_pos
             delta -= self.box_length * np.round(delta / self.box_length)
             unwrapped_positions[i] = reference_pos + delta
-
         return unwrapped_positions
 
     def calc_rcut(self, clust=None):
@@ -327,7 +323,4 @@ class System:
         distances = np.linalg.norm(pos_diff, axis=1)
         rcut = np.max(distances)
         self.rcut = rcut
-        if rcut > 2:
-            print(positions)
-            print(pos_diff)
         return rcut
