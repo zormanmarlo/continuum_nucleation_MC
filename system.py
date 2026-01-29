@@ -142,9 +142,11 @@ class System:
             move_name = self.move_names[move_idx]
 
             # NVT moves need special handling
-            if 'nvt' in move_name:
-                Nin, Nin_idx = self.calc_in(particle)
-                selected_move.attempt_move(particle, Nin_idx)
+            if 'nvt' in move_name or 'avbmc' in move_name:
+                # pick random particle type to calculate Nin
+                part_type = np.random.choice(np.unique(self.types))
+                Nin, Nin_idx = self.calc_in(particle, part_type=part_type)
+                selected_move.attempt_move(particle, Nin_idx, part_type)
             else:
                 selected_move.attempt_move(particle)
 
