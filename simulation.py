@@ -74,7 +74,7 @@ class Simulation:
     def write_output(self, step):
         '''Write current simulation state to all output files including energy, trajectory, clusters, and statistics'''
         # Get current cluster information
-        clust_sizes, target_clust = self.system.find_clusters()
+        clust_sizes, target_clust, clusters = self.system.find_clusters(output_all=True)
         
         # Write collective variable output (for umbrella sampling)
         if hasattr(self, 'colvar_file'):
@@ -124,9 +124,11 @@ class Simulation:
                 f.write(f'{step} {db_str}\n')
         
         if hasattr(self, 'rcut_file'):
-            self.system.calc_rcut(target_clust)
-            with open(self.rcut_file, 'a') as f:
-                f.write(f'{step} {len(target_clust)} {self.system.rcut}\n')
+            for cluster in clusters:
+                if len(cluster) > 1:
+                    self.system.calc_rcut(cluster)
+                    with open(self.rcut_file, 'a') as f:
+                        f.write(f'{step} {len(cluster)} {self.system.rcut}\n')
 
 def equal_hist(dist):
     '''Check if histogram distribution is sufficiently flat for adaptive umbrella sampling convergence'''

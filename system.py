@@ -241,7 +241,7 @@ class System:
         # self.target_clust_idx = cluster
         return cluster
     
-    def find_clusters(self):
+    def find_clusters(self, output_all=False):
         '''Find all clusters in the system using Stillinger cluster analysis with periodic boundary conditions'''
         tree = cKDTree(self.positions, boxsize=self.box_length + 1e-6)  # slight offset avoids precision issues
         neighbor_lists = tree.query_ball_point(self.positions, self.clust_cutoff)
@@ -265,7 +265,11 @@ class System:
 
         self.cluster_sizes = [len(c) for c in clusters]
         self.target_clust_idx = clusters[0]
-        return self.cluster_sizes, self.target_clust_idx
+        
+        if output_all:
+            return self.cluster_sizes, self.target_clust_idx, clusters
+        else:
+            return self.cluster_sizes, self.target_clust_idx
         
     def check_in(self, particle_idx):
         '''Check if particle is within cluster cutoff distance of any particle in target cluster'''
