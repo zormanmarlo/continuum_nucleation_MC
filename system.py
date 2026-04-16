@@ -141,6 +141,10 @@ class System:
             # If particle is not in target cluster, skip NVT move
             if 'nvt' in self.move_names[move_idx]:
                 self.find_target_cluster()
+            # check if all moves names contain 'nvt' and if so skip move
+            if particle not in self.target_clust_idx and 'nvt' in self.move_names[move_idx]:
+                if all('nvt' in name for name in self.move_names):
+                    return
             while particle not in self.target_clust_idx and 'nvt' in self.move_names[move_idx]:
                 move_idx = np.random.choice(len(self.active_moves), p=self.move_probabilities)
 
