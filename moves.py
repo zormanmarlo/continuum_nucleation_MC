@@ -103,9 +103,14 @@ class InOutAVBMCMove(Move):
         self.attempts += 1
 
         Nin, Nin_idx = self.system.calc_in(anchor_idx)
-        if Nin == 0 or (Nin == 1 and 0 in Nin_idx):
-            self.rejections += 1
-            return
+        if self.system.adapUS:
+            if Nin == 0 or (Nin == 1 and 0 in Nin_idx):
+                self.rejections += 1
+                return
+        else:
+            if Nin == 0:
+                self.rejections += 1
+                return
         target_idx = np.random.choice(Nin_idx)
         old_pos = self.system.positions[target_idx].copy()
 
@@ -157,9 +162,16 @@ class OutInAVBMCMove(Move):
 
         Nin, Nin_idx = self.system.calc_in(anchor_idx)
         target_idx = np.random.randint(self.system.num_particles)
-        while (target_idx in Nin_idx) or (target_idx == anchor_idx) or (target_idx == 0):
-            target_idx = np.random.randint(self.system.num_particles)
-
+        if Nin == self.system.num_particles-1:
+            self.rejections += 1
+            return
+        if self.system.adapUS:
+            while (target_idx in Nin_idx) or (target_idx == anchor_idx) or (target_idx == 0):
+                target_idx = np.random.randint(self.system.num_particles)
+        else:
+            while (target_idx in Nin_idx) or (target_idx == anchor_idx):
+                target_idx = np.random.randint(self.system.num_particles)
+        
         old_energy = self.system.calc_energy(target_idx)
         old_pos = self.system.positions[target_idx].copy()
         self.system.target_clust_idx = self.system.find_target_cluster()

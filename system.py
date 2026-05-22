@@ -7,13 +7,14 @@ from utils import *
 import logging
 
 class System:
-    def __init__(self, config, id=0):
+    def __init__(self, config, id=0, adapUS=False):
         '''Initialize System with configuration parameters, PMF, and move objects'''
         self.config = config
         self.box_length = config.box_length
         self.num_particles = config.num_particles
         self.kT = config.kT
-        self.rcut = 0 
+        self.rcut = 0
+        self.adapUS = adapUS
 
         self.id = str(id).zfill(2)
         self.pmf = PMF(config.epsilon, config.sigma, config.energy_cutoff)
