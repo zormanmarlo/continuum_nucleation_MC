@@ -129,7 +129,7 @@ class System:
         '''Execute one Monte Carlo step by randomly selecting and attempting a move'''
         # iterate over all particles in system
         for particle in range(self.num_particles):
-            # Dynamic move selection using probabilities from configq
+            # Dynamic move selection using probabilities from config
             move_idx = np.random.choice(len(self.active_moves), p=self.move_probabilities)
 
             # Update target cluster, if particle is not in it, skip NVT move
@@ -218,7 +218,7 @@ class System:
                         # queue.append(neighbor)
                 neighbors = find_neighbors_numba(self.positions, self.positions[current], self.clust_cutoff, self.box_length)
                 # check if nieghbors are different type from target particle
-                neighbors = [n for n in neighbors if self.types[n] != self.types[current]]
+                # neighbors = [n for n in neighbors if self.types[n] != self.types[current]]
                 queue.extend([n for n in neighbors if n not in visited])
         
         # Cluster around target particle found
@@ -244,7 +244,7 @@ class System:
                         cluster.append(current)
                         for neighbor in neighbor_lists[current]:
                             # if not visited[neighbor]:
-                            if not visited[neighbor] and self.types[neighbor] != self.types[current]:
+                            if not visited[neighbor]:
                                 queue.append(neighbor)
                 clusters.append(cluster)
 
@@ -280,9 +280,39 @@ class System:
         
         return Nin, Nin_idx
 
-    
     def calc_dist(self, pos1, pos2):
         '''Calculate minimum image distance between two positions with periodic boundary conditions'''
         dist_vec = np.abs(pos1 - pos2)
         dist_vec = dist_vec - self.box_length * np.round(dist_vec / self.box_length)
         return np.linalg.norm(dist_vec)
+    
+    def unwrap_positions(self, cluster_indices):
+        '''Unwrap positions of particles in a cluster relative to the first particle, removing periodic boundary conditions'''
+        if len(cluster_indices) == 0:
+            return np.array([])
+        # Use first particle as fixed reference point
+        reference_pos = self.positions[cluster_indices[0]]
+        unwrapped_positions = np.zeros((len(cluster_indices), 3))
+        unwrapped_positions[0] = reference_pos
+        for i, idx in enumerate(cluster_indices[1:], start=1):
+            pos = self.positions[idx]
+            delta = pos - reference_pos
+            delta -= self.box_length * np.round(delta / self.box_length)
+            unwrapped_positions[i] = reference_pos + delta
+        return unwrapped_positions
+
+    def calc_rcut(self, clust=None, coordinates=False):
+        '''Calculate rcut as the maximum distance from geometric center of target cluster to its particles'''
+        clust = self.find_target_cluster() if clust is None else clust
+        positions = self.unwrap_positions(clust)
+        geometric_center = np.mean(positions, axis=0)
+        pos_diff = positions - geometric_center
+        distances = np.linalg.norm(pos_diff, axis=1)
+        rcut = np.max(distances)
+        self.rcut = rcut
+
+        if coordinates:
+            translated_positions = positions - geometric_center + self.box_length / 2
+            return rcut, translated_positions, self.types[clust]
+        else:
+            return rcut

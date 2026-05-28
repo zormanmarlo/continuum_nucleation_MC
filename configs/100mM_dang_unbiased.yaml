@@ -1,0 +1,29 @@
+# CONCENTRATION
+concentration: 2.0
+num_particles: 2500
+
+# SIMULATION SETTINGS
+equil_steps: 0
+prod_steps: 2000
+output_interval: 10
+internal_interval: 10
+seed: 11
+
+# MOVE RATES
+avbmc_rate: 0.2
+nvt_rate: 0.1
+translation_rate: 0.7
+swap_rate: 0.0
+max_displacement: 30
+
+# CLUSTER DEFINITION
+lower_bonded_cutoff: 2.5
+clust_cutoff: 3.5
+
+# INPUT FILES
+ff_path: Dang_NaCl.txt
+input_path: null
+
+# OUTPUT RCUT
+output_rcut: True
+output_rcut_traj: True
