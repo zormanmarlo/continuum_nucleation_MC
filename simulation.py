@@ -14,7 +14,7 @@ from utils import *
 from config import Config
 
 class Simulation:
-    def __init__(self, config_file, jobname, ID=0, path=".", multi_inputs=False):
+    def __init__(self, config_file, jobname, ID=0, path=".", multi_inputs=False, adapUS=False):
         '''Initialize simulation with configuration, system setup, and output file paths'''
         self.config = Config(config_file)
 
@@ -25,7 +25,7 @@ class Simulation:
         logger.info(f"Using seed from config file: {self.config.seed + ID}")
         np.random.seed(self.config.seed + ID)
 
-        self.system = System(self.config, ID)
+        self.system = System(self.config, ID, adapUS=adapUS)
         self.system.init_positions(input_path=self.config.input_path, multi=multi_inputs)
         self.target_sizes = []
 
@@ -186,7 +186,7 @@ if __name__ == "__main__":
 
     except OSError as error:
         logger.error(f'error creating directory -- exiting {args.path+"/"+args.jobname}: {error}')
-    simulations = [Simulation(args.config, args.jobname, ID=i, path=args.path, multi_inputs=args.multi_inputs) for i in range(args.np)]
+    simulations = [Simulation(args.config, args.jobname, ID=i, path=args.path, multi_inputs=args.multi_inputs, adapUS=args.adapUS) for i in range(args.np)]
 
     if not args.adapUS:
         if args.np == 1:
