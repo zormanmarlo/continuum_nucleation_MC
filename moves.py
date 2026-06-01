@@ -95,7 +95,7 @@ class InOutAVBMCMove(Move):
     def __init__(self, system):
         '''Initialize AVBMC in-out move with volume calculations for bias correction'''
         super().__init__(system)
-        self.Vin = 4.0/3.0 * np.pi * (self.system.clust_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_cutoff**3)
+        self.Vin = 4.0/3.0 * np.pi * (self.system.config.upper_bonded_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_bonded_cutoff**3)
         self.Vout = self.system.box_length**3 # subtract Vin for accuracy? seems neglible for large boxes
 
     def attempt_move(self, anchor_idx):
@@ -110,7 +110,7 @@ class InOutAVBMCMove(Move):
         old_pos = self.system.positions[target_idx].copy()
 
         new_pos = np.round(((np.random.rand(3) - 0.5) * self.system.box_length * 2), 3) % self.system.box_length
-        while self.system.calc_dist(old_pos, new_pos) <= self.system.config.upper_cutoff:
+        while self.system.calc_dist(old_pos, new_pos) <= self.system.config.upper_bonded_cutoff:
             new_pos = np.round(((np.random.rand(3) - 0.5) * self.system.box_length * 2), 3) % self.system.box_length
 
         delta_energy, bias_energy, new_energy, old_energy = self.system.calc_energy_delta(target_idx, new_pos, old_pos)
@@ -148,7 +148,7 @@ class OutInAVBMCMove(Move):
     def __init__(self, system):
         '''Initialize AVBMC out-in move with volume calculations and Rosenbluth sampling'''
         super().__init__(system)
-        self.Vin = 4.0/3.0 * np.pi * (self.system.clust_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_cutoff**3)
+        self.Vin = 4.0/3.0 * np.pi * (self.system.config.upper_bonded_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_bonded_cutoff**3)
         self.Vout = self.system.box_length**3
     
     def attempt_move(self, anchor_idx):
@@ -165,12 +165,12 @@ class OutInAVBMCMove(Move):
         self.system.target_clust_idx = self.system.find_target_cluster()
 
         # Calculate wnew for the new configuration
-        nrb = self.system.config.parameters['rosenbluth_trials']
+        nrb = self.system.config.n_rosenbluth_trials
         wnew = 0
         rosenbluth_weights = []
         for _ in range(nrb):            
             # Uniform sampling on the sphere for direction
-            r = np.cbrt(np.random.rand() * (self.system.clust_cutoff**3 - self.system.config.lower_cutoff**3) + self.system.config.lower_cutoff**3)
+            r = np.cbrt(np.random.rand() * (self.system.config.upper_bonded_cutoff**3 - self.system.config.lower_bonded_cutoff**3) + self.system.config.lower_bonded_cutoff**3)
             phi = 2 * np.pi * np.random.rand()
             cos_theta = 2 * np.random.rand() - 1
             sin_theta = np.sqrt(1 - cos_theta**2)
@@ -212,7 +212,7 @@ class OutInAVBMCMove(Move):
             
             old_pos_out = self.system.positions[target_idx_out].copy()
             new_pos_out = np.round(((np.random.rand(3) - 0.5) * self.system.box_length * 2), 3) % self.system.box_length
-            while self.system.calc_dist(old_pos_out, new_pos_out) <= self.system.config.upper_cutoff:
+            while self.system.calc_dist(old_pos_out, new_pos_out) <= self.system.config.upper_bonded_cutoff:
                 new_pos_out = np.round(((np.random.rand(3) - 0.5) * self.system.box_length * 2), 3) % self.system.box_length
             
             self.system.positions[target_idx_out] = new_pos_out.copy()
@@ -263,7 +263,7 @@ class NVTInOutMove(Move):
     def __init__(self, system):
         '''Initialize NVT in-out move for cluster nucleation with AVBMC bias correction'''
         super().__init__(system)
-        self.Vin = 4.0/3.0 * np.pi * (self.system.clust_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_cutoff**3)
+        self.Vin = 4.0/3.0 * np.pi * (self.system.config.upper_bonded_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_bonded_cutoff**3)
         self.Vout = self.system.box_length**3
     
     def attempt_move(self, anchor_idx, Nin_idx):
@@ -285,7 +285,7 @@ class NVTInOutMove(Move):
         clust_pos = np.asarray([self.system.positions[i] for i in self.system.target_clust_idx])
         while regen:
             distances = np.linalg.norm(clust_pos - new_pos, axis=1)
-            if np.all(distances > self.system.config.upper_cutoff):
+            if np.all(distances > self.system.config.upper_bonded_cutoff):
                 regen = False
             else:
                 new_pos = np.round(((np.random.rand(3) - 0.5) * self.system.box_length * 2), 3) % self.system.box_length
@@ -334,7 +334,7 @@ class NVTOutInMove(Move):
     def __init__(self, system):
         '''Initialize NVT out-in move for cluster growth with Rosenbluth sampling and nucleation bias'''
         super().__init__(system)
-        self.Vin = 4.0/3.0 * np.pi * (self.system.clust_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_cutoff**3)
+        self.Vin = 4.0/3.0 * np.pi * (self.system.config.upper_bonded_cutoff**3) - 4.0/3.0 * np.pi * (self.system.config.lower_bonded_cutoff**3)
         self.Vout = self.system.box_length**3
     
     def attempt_move(self, anchor_idx, Nin_idx):
@@ -353,11 +353,11 @@ class NVTOutInMove(Move):
         self.system.target_clust_idx = self.system.find_target_cluster()
 
         # Calculate wnew for the new configuration
-        nrb = self.system.config.parameters['rosenbluth_trials']  # Number of Rosenbluth trials
+        nrb = self.system.config.n_rosenbluth_trials  # Number of Rosenbluth trials
         wnew = 0
         rosenbluth_weights = []
         for _ in range(nrb):
-            r = np.cbrt(np.random.rand() * (self.system.clust_cutoff**3 - self.system.config.lower_cutoff**3) + self.system.config.lower_cutoff**3)
+            r = np.cbrt(np.random.rand() * (self.system.config.upper_bonded_cutoff**3 - self.system.config.lower_bonded_cutoff**3) + self.system.config.lower_bonded_cutoff**3)
             phi = 2 * np.pi * np.random.rand()
             cos_theta = 2 * np.random.rand() - 1
             sin_theta = np.sqrt(1 - cos_theta**2)
@@ -394,7 +394,7 @@ class NVTOutInMove(Move):
             
             old_pos_out = self.system.positions[target_idx_out].copy()
             new_pos_out = np.round(((np.random.rand(3) - 0.5) * self.system.box_length * 2), 3) % self.system.box_length
-            while self.system.calc_dist(old_pos_out, new_pos_out) <= self.system.config.upper_cutoff:
+            while self.system.calc_dist(old_pos_out, new_pos_out) <= self.system.config.upper_bonded_cutoff:
                 new_pos_out = np.round(((np.random.rand(3) - 0.5) * self.system.box_length * 2), 3) % self.system.box_length
             
             self.system.positions[target_idx_out] = new_pos_out

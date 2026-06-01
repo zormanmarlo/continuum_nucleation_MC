@@ -322,7 +322,7 @@ class System:
             unwrapped_positions[i] = reference_pos + delta
         return unwrapped_positions
 
-    def calc_rcut(self, clust=None):
+    def calc_rcut(self, clust=None, coordinates=False):
         '''Calculate rcut as the maximum distance from geometric center of target cluster to its particles'''
         clust = self.find_target_cluster() if clust is None else clust
         positions = self.unwrap_positions(clust)
@@ -331,4 +331,9 @@ class System:
         distances = np.linalg.norm(pos_diff, axis=1)
         rcut = np.max(distances)
         self.rcut = rcut
-        return rcut
+
+        if coordinates:
+            translated_positions = positions - geometric_center + self.box_length / 2
+            return rcut, translated_positions, self.types[clust]
+        else:
+            return rcut
